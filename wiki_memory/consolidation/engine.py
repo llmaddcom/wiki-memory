@@ -1,0 +1,195 @@
+"""固化引擎："睡眠"过程本体，wiki 唯一的常规写通路。
+
+两阶段：
+1. select —— 给 LLM 索引 + sources，选出需要读全文的已有页面（宁少勿多）。
+2. write  —— 给 LLM 索引 + sources + 相关页全文，产出 create/update/archive 操作。
+
+引擎经仓储层落库：写修订、记出处、重解析 [[链接]]、悬空愈合、
+更新 source 状态、留 run 日志。LLM 输出垃圾时 run 标 failed、
+source 保持 pending 可重试；产出零操作是合法结果（遗忘是功能）。
+"""
+
+import json
+import re
+
+from sqlmodel import Session
+
+from ..linking import extract_link_slugs, slugify
+from ..llm.base import ChatLLM, LLMError
+from ..models import (
+    ConsolidationRun,
+    Page,
+    PageStatus,
+    PageType,
+    RevisionTrigger,
+    RunStatus,
+    Source,
+    Space,
+    utcnow,
+)
+from ..repositories import (
+    evidence_repo,
+    link_repo,
+    page_repo,
+    revision_repo,
+    run_repo,
+    source_repo,
+)
+from . import prompts
+
+
+def parse_json_object(text: str) -> dict:
+    """宽容解析：剥掉 code fence / 前后废话，取第一个 { 到最后一个 }。"""
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end > start:
+            return json.loads(text[start : end + 1])
+        raise
+
+
+class ConsolidationEngine:
+    def __init__(self, llm: ChatLLM):
+        self._llm = llm
+
+    def run(
+        self,
+        session: Session,
+        space: Space,
+        trigger: str = "manual",
+        max_sources: int = 20,
+    ) -> ConsolidationRun:
+        pending = source_repo.list_pending(session, space.id, max_sources)
+        run = run_repo.create(session, space.id, trigger, [s.id for s in pending])
+
+        if not pending:
+            return run_repo.finish(session, run, RunStatus.succeeded, pages_touched=[])
+
+        try:
+            touched = self._consolidate(session, space, run, pending)
+            return run_repo.finish(session, run, RunStatus.succeeded, pages_touched=touched)
+        except (LLMError, json.JSONDecodeError, KeyError, ValueError) as e:
+            session.rollback()
+            return run_repo.finish(
+                session, run, RunStatus.failed, error=f"{type(e).__name__}: {e}"
+            )
+
+    # -- 内部实现 --------------------------------------------------------
+
+    def _consolidate(
+        self, session: Session, space: Space, run: ConsolidationRun, pending: list[Source]
+    ) -> list[str]:
+        active_pages = page_repo.list_active(session, space.id)
+        index_text = prompts.render_index(active_pages)
+        sources_text = prompts.render_sources(pending)
+
+        # 阶段一：选出需要读全文的页面（wiki 为空时跳过）
+        context_pages: list[Page] = []
+        if active_pages:
+            res = self._llm.complete(
+                prompts.CONSOLIDATE_SELECT_SYSTEM,
+                f"## wiki 索引\n{index_text}\n\n## 最近经历\n{sources_text}",
+            )
+            run.prompt_tokens += res.prompt_tokens
+            run.completion_tokens += res.completion_tokens
+            slugs = parse_json_object(res.text).get("read", [])
+            by_slug = {p.slug: p for p in active_pages}
+            context_pages = [by_slug[s] for s in slugs if s in by_slug]
+
+        # 阶段二：产出操作
+        res = self._llm.complete(
+            prompts.CONSOLIDATE_SYSTEM,
+            f"## wiki 索引\n{index_text}\n\n"
+            f"## 相关页面全文\n{prompts.render_pages_full(context_pages)}\n\n"
+            f"## 最近经历\n{sources_text}",
+        )
+        run.prompt_tokens += res.prompt_tokens
+        run.completion_tokens += res.completion_tokens
+        operations = parse_json_object(res.text).get("operations", [])
+
+        valid_ids = {s.id for s in pending}
+        consumed: set[int] = set()
+        touched: list[str] = []
+        for op in operations:
+            source_ids = [i for i in op.get("source_ids", []) if i in valid_ids]
+            slug = self._apply_op(session, space, run, op, source_ids)
+            if slug:
+                touched.append(slug)
+                consumed.update(source_ids)
+
+        link_repo.resolve_dangling(session, space.id)
+        source_repo.mark_consumed(session, pending, consumed)
+        session.commit()
+        return touched
+
+    def _apply_op(
+        self,
+        session: Session,
+        space: Space,
+        run: ConsolidationRun,
+        op: dict,
+        source_ids: list[int],
+    ) -> str | None:
+        kind = op.get("op")
+        slug = slugify(op.get("slug", ""))
+        if not slug or kind not in ("create", "update", "archive"):
+            return None
+
+        page = page_repo.get_by_slug(session, space.id, slug)
+        reason = op.get("change_reason", "")
+
+        if kind == "archive":
+            if page is None or page.status == PageStatus.archived:
+                return None
+            page.status = PageStatus.archived
+            page.updated_at = utcnow()
+            self._record(session, page, run, reason or "归档", source_ids)
+            return slug
+
+        title = op.get("title") or slug
+        summary = op.get("summary") or ""
+        body = op.get("body") or ""
+        confidence = op.get("confidence")
+
+        if page is None:
+            page = Page(
+                space_id=space.id,
+                type=PageType(op.get("type", PageType.belief.value)),
+                slug=slug,
+                title=title,
+                summary=summary,
+                body=body,
+                confidence=confidence,
+            )
+            session.add(page)
+            session.flush()
+            reason = reason or "建页"
+        else:
+            page.title = title
+            page.summary = summary
+            page.body = body
+            if confidence is not None:
+                page.confidence = confidence
+            page.status = PageStatus.active
+            page.updated_at = utcnow()
+            reason = reason or "更新"
+
+        self._record(session, page, run, reason, source_ids)
+        link_repo.refresh_for_page(session, space.id, page, extract_link_slugs(page.body))
+        return slug
+
+    def _record(
+        self,
+        session: Session,
+        page: Page,
+        run: ConsolidationRun,
+        reason: str,
+        source_ids: list[int],
+    ) -> None:
+        rev = revision_repo.add(
+            session, page, reason, RevisionTrigger.consolidation, run_id=run.id
+        )
+        evidence_repo.add_many(session, rev.id, source_ids)

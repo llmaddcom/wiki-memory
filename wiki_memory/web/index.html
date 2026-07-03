@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wiki-memory 记忆预览</title>
+<style>
+  :root{
+    --bg:#1e1e20; --bg2:#252529; --bg3:#2c2c31; --line:#3a3a40;
+    --fg:#dcddde; --dim:#9a9aa3; --accent:#a882ff; --accent2:#7bc3ff;
+    --danger:#ff8a8a; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column}
+  header{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--line)}
+  header b{color:var(--accent);margin-right:6px;white-space:nowrap}
+  input,select,button{background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 10px;font-size:13px}
+  input:focus{outline:1px solid var(--accent)}
+  button{cursor:pointer} button:hover{border-color:var(--accent)}
+  #layout{flex:1;display:flex;min-height:0}
+  #sidebar{width:300px;background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  #filter{margin:10px;padding:6px 10px}
+  #tree{flex:1;overflow:auto;padding:0 6px 12px}
+  .group{margin-top:10px}
+  .group>.gh{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;padding:2px 8px}
+  .item{display:block;padding:4px 8px;border-radius:6px;color:var(--fg);text-decoration:none;cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item:hover{background:var(--bg3)} .item.active{background:#3b3252;color:#fff}
+  .item small{color:var(--dim)}
+  #main{flex:1;overflow:auto;padding:26px 40px;min-width:0}
+  #main .meta{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}
+  .chip{font-size:11px;padding:2px 10px;border-radius:999px;background:var(--bg3);color:var(--dim);border:1px solid var(--line)}
+  .chip.t{color:var(--accent);border-color:#4b3f6e}
+  h1.pt{margin:0;font-size:26px}
+  article h2{border-bottom:1px solid var(--line);padding-bottom:4px;margin-top:26px;font-size:18px}
+  article code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12.5px}
+  article a.wl{color:var(--accent2);text-decoration:none;border-bottom:1px dashed #4a6a8a}
+  article a.wl.dang{color:var(--danger);border-bottom-color:#7a4444;cursor:help}
+  article ul{padding-left:22px}
+  .panel{margin-top:30px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .panel>.ph{padding:8px 14px;background:var(--bg2);cursor:pointer;font-size:13px;color:var(--dim);user-select:none}
+  .panel>.pb{padding:6px 14px 12px;display:none}
+  .panel.open>.pb{display:block}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--dim);font-weight:500}
+  .empty{color:var(--dim);margin-top:60px;text-align:center}
+  .tabs{display:flex;gap:4px;margin-left:auto}
+  .tabs button.on{border-color:var(--accent);color:var(--accent)}
+  pre.src{white-space:pre-wrap;background:var(--bg3);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:12px;max-height:200px;overflow:auto}
+  .badge{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+  .b-pending{color:#ffd479} .b-consolidated{color:#8fe38f} .b-skipped{color:var(--dim)}
+  .b-succeeded{color:#8fe38f} .b-failed{color:var(--danger)} .b-running{color:#ffd479}
+</style>
+</head>
+<body>
+<header>
+  <b>🧠 wiki-memory</b>
+  <input id="uid" placeholder="space uid" size="34">
+  <input id="key" placeholder="X-API-Key（未设置可留空）" size="22" type="password">
+  <button onclick="load()">加载</button>
+  <span id="stat" style="color:var(--dim);font-size:12px"></span>
+  <nav class="tabs">
+    <button id="tab-pages" class="on" onclick="setTab('pages')">页面</button>
+    <button id="tab-sources" onclick="setTab('sources')">来源</button>
+    <button id="tab-runs" onclick="setTab('runs')">固化日志</button>
+  </nav>
+</header>
+<div id="layout">
+  <aside id="sidebar">
+    <input id="filter" placeholder="过滤页面…" oninput="renderTree()">
+    <div id="tree"></div>
+  </aside>
+  <section id="main"><div class="empty">输入 space uid 后加载记忆库</div></section>
+</div>
+<script>
+const TYPE_CN = {lesson:"教训", event:"大事记", person:"人物", belief:"认识", procedure:"经验", self:"自我"};
+let INDEX = [], SLUGS = new Set(), TAB = "pages", CURRENT = null;
+
+const api = p => fetch(p, {headers: keyHeader()}).then(r => {
+  if (!r.ok) throw new Error(r.status + " " + p); return r.json();
+});
+const keyHeader = () => { const k = document.getElementById("key").value.trim();
+  return k ? {"X-API-Key": k} : {}; };
+const uid = () => document.getElementById("uid").value.trim();
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+async function load(){
+  if(!uid()) return;
+  localStorage.setItem("wm_uid", uid()); localStorage.setItem("wm_key", document.getElementById("key").value);
+  try{
+    INDEX = await api(`/spaces/${uid()}/index`);
+    SLUGS = new Set(INDEX.map(e=>e.slug));
+    document.getElementById("stat").textContent = `${INDEX.length} 页`;
+    renderTree();
+    const slug = location.hash.slice(1);
+    if (slug && SLUGS.has(slug)) openPage(slug);
+    else main(INDEX.length ? '<div class="empty">从左侧选择一页</div>' : '<div class="empty">wiki 还是空的——ingest 一些 source 并触发固化</div>');
+  }catch(e){ main(`<div class="empty">加载失败：${esc(e.message)}</div>`); }
+}
+
+const main = html => document.getElementById("main").innerHTML = html;
+
+function renderTree(){
+  const q = document.getElementById("filter").value.toLowerCase();
+  const groups = {};
+  for (const e of INDEX){
+    if (q && !(e.slug+e.title+e.summary).toLowerCase().includes(q)) continue;
+    (groups[e.type] ||= []).push(e);
+  }
+  document.getElementById("tree").innerHTML = Object.entries(groups).map(([t, es]) => `
+    <div class="group"><div class="gh">${TYPE_CN[t]||t} · ${es.length}</div>
+    ${es.map(e=>`<a class="item ${CURRENT===e.slug?'active':''}" onclick="openPage('${e.slug}')"
+      title="${esc(e.summary)}">${esc(e.title)} <small>${e.slug}</small></a>`).join("")}</div>`).join("")
+    || '<div class="empty" style="margin-top:20px">无匹配页面</div>';
+}
+
+// 极简 markdown 渲染：够预览用（标题/粗斜体/行内码/列表/[[链接]]）
+function md(src){
+  let h = esc(src);
+  h = h.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_, tgt, label) => {
+    const slug = tgt.trim().toLowerCase().replace(/[\s_]+/g,"-");
+    const ok = SLUGS.has(slug);
+    return `<a class="wl ${ok?'':'dang'}" ${ok?`onclick="openPage('${slug}')"`:`title="悬空链接：页面尚未建立"`}>${label||tgt}</a>`;
+  });
+  h = h.replace(/`([^`]+)`/g,"<code>$1</code>")
+       .replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/\*([^*]+)\*/g,"<i>$1</i>");
+  return h.split(/\n{2,}/).map(block => {
+    const b = block.trim(); if(!b) return "";
+    if (/^#{1,6} /.test(b)) { const n = b.match(/^#+/)[0].length; return `<h${Math.min(n+1,5)}>${b.replace(/^#+ /,"")}</h${Math.min(n+1,5)}>`; }
+    if (/^([-*] )/m.test(b)) return "<ul>" + b.split("\n").map(l=>l.replace(/^[-*] (.*)/,"<li>$1</li>")).join("") + "</ul>";
+    return `<p>${b.replace(/\n/g,"<br>")}</p>`;
+  }).join("");
+}
+
+async function openPage(slug){
+  setTab("pages", true); CURRENT = slug; location.hash = slug; renderTree();
+  try{
+    const [p, revs, ev] = await Promise.all([
+      api(`/spaces/${uid()}/pages/${slug}`),
+      api(`/spaces/${uid()}/pages/${slug}/revisions`),
+      api(`/spaces/${uid()}/pages/${slug}/evidence`)]);
+    main(`
+      <h1 class="pt">${esc(p.title)}</h1>
+      <div class="meta">
+        <span class="chip t">${TYPE_CN[p.type]||p.type}</span><span class="chip">${p.slug}</span>
+        ${p.confidence!=null?`<span class="chip">置信度 ${p.confidence}</span>`:""}
+        <span class="chip">第 ${revs.length} 版</span>
+        <span class="chip">更新于 ${p.updated_at.slice(0,16).replace("T"," ")}</span>
+      </div>
+      <div style="color:var(--dim);font-size:13px;margin-bottom:6px">${esc(p.summary)}</div>
+      <article>${md(p.body)}</article>
+      <div class="panel"><div class="ph" onclick="this.parentNode.classList.toggle('open')">📜 修订历史（${revs.length}）</div>
+        <div class="pb"><table><tr><th>版</th><th>原因</th><th>触发</th><th>时间</th></tr>
+        ${revs.map(r=>`<tr><td>${r.seq}</td><td>${esc(r.change_reason)}</td><td>${r.trigger}</td><td>${r.created_at.slice(0,16).replace("T"," ")}</td></tr>`).join("")}
+        </table></div></div>
+      <div class="panel"><div class="ph" onclick="this.parentNode.classList.toggle('open')">🔗 出处（${ev.length}）</div>
+        <div class="pb"><table><tr><th>版</th><th>依据 source</th><th>类型</th><th>发生时间</th></tr>
+        ${ev.map(e=>`<tr><td>${e.revision_seq}</td><td>#${e.source_id}</td><td>${e.source_kind}</td><td>${String(e.source_occurred_at).slice(0,16).replace("T"," ")}</td></tr>`).join("")}
+        </table></div></div>`);
+  }catch(e){ main(`<div class="empty">读取页面失败：${esc(e.message)}</div>`); }
+}
+
+function setTab(t, silent){
+  TAB = t;
+  for (const x of ["pages","sources","runs"])
+    document.getElementById("tab-"+x).classList.toggle("on", x===t);
+  if (silent) return;
+  if (t==="sources") showSources();
+  else if (t==="runs") showRuns();
+  else main(CURRENT ? "" : '<div class="empty">从左侧选择一页</div>') || (CURRENT && openPage(CURRENT));
+}
+
+async function showSources(){
+  try{
+    const ss = await api(`/spaces/${uid()}/sources`);
+    main(`<h1 class="pt">来源（${ss.length}）</h1><div class="meta"><span class="chip">不可变经历材料 · 记忆的证据层</span></div>` +
+      ss.slice().reverse().map(s=>`
+      <div class="panel open"><div class="ph">#${s.id} · ${s.kind} ·
+        <span class="badge b-${s.status}">${s.status}</span> · salience ${s.salience} · ${s.occurred_at.slice(0,16).replace("T"," ")}</div>
+      <div class="pb"><pre class="src">${esc(s.content)}</pre></div></div>`).join("")
+      || '<div class="empty">尚无 source</div>');
+  }catch(e){ main(`<div class="empty">${esc(e.message)}</div>`); }
+}
+
+async function showRuns(){
+  try{
+    const rs = await api(`/spaces/${uid()}/runs`);
+    main(`<h1 class="pt">固化日志（${rs.length}）</h1><div class="meta"><span class="chip">"睡眠"过程留痕</span></div>
+      <table><tr><th>#</th><th>状态</th><th>触发</th><th>消费 source</th><th>动过的页</th><th>tokens</th><th>时间</th><th>错误</th></tr>
+      ${rs.map(r=>`<tr><td>${r.id}</td><td><span class="badge b-${r.status}">${r.status}</span></td>
+        <td>${r.trigger}</td><td>${(r.source_ids||[]).join(", ")||"—"}</td>
+        <td>${(r.pages_touched||[]).map(s=>`<a class="wl" onclick="openPage('${s}')">${s}</a>`).join(", ")||"—"}</td>
+        <td>${r.prompt_tokens+r.completion_tokens}</td>
+        <td>${r.started_at.slice(0,16).replace("T"," ")}</td><td>${esc(r.error||"—")}</td></tr>`).join("")}
+      </table>`);
+  }catch(e){ main(`<div class="empty">${esc(e.message)}</div>`); }
+}
+
+document.getElementById("uid").value = localStorage.getItem("wm_uid") || "";
+document.getElementById("key").value = localStorage.getItem("wm_key") || "";
+if (uid()) load();
+</script>
+</body>
+</html>

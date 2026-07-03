@@ -1,0 +1,127 @@
+"""wiki 页面路由：索引 / 全文 / 修订历史 / 出处链 / 回滚 / 软图谱。
+
+页面内容只读；唯一的写操作是回滚（拷历史版为新版，历史不丢）。
+"""
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session
+
+from ...db import get_session
+from ...models import (
+    Page,
+    PageLink,
+    PageRevision,
+    PageStatus,
+    PageType,
+    RevisionTrigger,
+    Space,
+    utcnow,
+)
+from ...repositories import evidence_repo, link_repo, page_repo, revision_repo
+from .. import schemas
+from ..deps import get_space, require_api_key
+
+router = APIRouter(dependencies=[Depends(require_api_key)])
+
+
+def _get_page_or_404(session: Session, space: Space, slug: str) -> Page:
+    page = page_repo.get_by_slug(session, space.id, slug)
+    if page is None:
+        raise HTTPException(status_code=404, detail="page not found")
+    return page
+
+
+@router.get("/spaces/{space_uid}/index", response_model=list[schemas.IndexEntry])
+def read_index(space: Space = Depends(get_space), session: Session = Depends(get_session)):
+    return [
+        schemas.IndexEntry(
+            type=p.type, slug=p.slug, title=p.title, summary=p.summary, updated_at=p.updated_at
+        )
+        for p in page_repo.list_active(session, space.id)
+    ]
+
+
+@router.get("/spaces/{space_uid}/pages", response_model=list[Page])
+def list_pages(
+    type: Optional[PageType] = None,
+    status: PageStatus = PageStatus.active,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
+):
+    return page_repo.list_pages(session, space.id, type=type, status=status)
+
+
+@router.get("/spaces/{space_uid}/pages/{slug}", response_model=Page)
+def read_page(
+    slug: str, space: Space = Depends(get_space), session: Session = Depends(get_session)
+):
+    return _get_page_or_404(session, space, slug)
+
+
+@router.get("/spaces/{space_uid}/pages/{slug}/revisions", response_model=list[PageRevision])
+def list_revisions(
+    slug: str, space: Space = Depends(get_space), session: Session = Depends(get_session)
+):
+    page = _get_page_or_404(session, space, slug)
+    return revision_repo.list_for_page(session, page.id)
+
+
+@router.get("/spaces/{space_uid}/pages/{slug}/evidence")
+def list_evidence(
+    slug: str, space: Space = Depends(get_space), session: Session = Depends(get_session)
+):
+    page = _get_page_or_404(session, space, slug)
+    return evidence_repo.list_for_page(session, page.id)
+
+
+@router.post("/spaces/{space_uid}/pages/{slug}/rollback", response_model=Page)
+def rollback_page(
+    slug: str,
+    payload: schemas.RollbackRequest,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
+):
+    page = _get_page_or_404(session, space, slug)
+    target = revision_repo.get_by_seq(session, page.id, payload.seq)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"revision seq={payload.seq} not found")
+    page.title = target.title
+    page.summary = target.summary
+    page.body = target.body
+    page.status = PageStatus.active
+    page.updated_at = utcnow()
+    revision_repo.add(
+        session, page, f"回滚到第 {payload.seq} 版", RevisionTrigger.rollback
+    )
+    session.commit()
+    session.refresh(page)
+    return page
+
+
+@router.post("/spaces/{space_uid}/pages/{slug}/archive", response_model=Page)
+def archive_page(
+    slug: str,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
+):
+    """人工归档（用户明确要求"忘掉"）：页面退出索引与召回，历史与出处保留可审计。"""
+    page = _get_page_or_404(session, space, slug)
+    if page.status == PageStatus.archived:
+        return page
+    page.status = PageStatus.archived
+    page.updated_at = utcnow()
+    revision_repo.add(session, page, "人工归档（用户要求遗忘）", RevisionTrigger.manual)
+    session.commit()
+    session.refresh(page)
+    return page
+
+
+@router.get("/spaces/{space_uid}/links", response_model=list[PageLink])
+def list_links(
+    dangling: Optional[bool] = None,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
+):
+    return link_repo.list_by_space(session, space.id, dangling=dangling)
