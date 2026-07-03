@@ -1,5 +1,6 @@
-"""consolidation_run 仓储：固化运行日志的创建、收尾与列举。"""
+"""consolidation_run 仓储：固化运行日志的创建、收尾、列举与互斥探测。"""
 
+from datetime import timedelta
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -31,6 +32,26 @@ def finish(
     session.add(run)
     session.commit()
     session.refresh(run)
+    return run
+
+
+def find_active(
+    session: Session, space_id: int, *, stale_seconds: int = 1800
+) -> Optional[ConsolidationRun]:
+    """该 space 是否有进行中的固化（互斥用）。running 超过 stale_seconds 视为死运行忽略。"""
+    run = session.exec(
+        select(ConsolidationRun)
+        .where(
+            ConsolidationRun.space_id == space_id,
+            ConsolidationRun.status == RunStatus.running,
+        )
+        .order_by(ConsolidationRun.started_at.desc())
+        .limit(1)
+    ).first()
+    if run is None:
+        return None
+    if run.started_at < utcnow() - timedelta(seconds=stale_seconds):
+        return None
     return run
 
 

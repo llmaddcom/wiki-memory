@@ -1,0 +1,52 @@
+INFO:     Started server process [1882516]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8020 (Press CTRL+C to quit)
+INFO:     127.0.0.1:38014 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39586 - "POST /spaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39588 - "POST /spaces/d8c548c43ba348cfd68b1ba3f01639f3/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55354 - "GET /spaces/d8c548c43ba348cfd68b1ba3f01639f3/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43146 - "POST /spaces/d8c548c43ba348cfd68b1ba3f01639f3/consolidate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52946 - "POST /spaces/d8c548c43ba348cfd68b1ba3f01639f3/recall HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52956 - "GET /spaces/d8c548c43ba348cfd68b1ba3f01639f3/pages/lao-zhang HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35616 - "POST /spaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35628 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/recall HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57844 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59322 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/recall HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46632 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46646 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46662 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46672 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46678 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46684 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46428 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46430 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46440 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34072 - "GET /spaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40226 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34270 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/recall HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41872 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60344 - "POST /spaces/0c4ae2795c86b5f032c059a3e2d45475/consolidate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41886 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41894 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41898 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51122 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51132 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50214 - "GET /ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50214 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50230 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/index HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50230 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33438 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis/revisions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33450 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis/evidence HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57768 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56478 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56478 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56508 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis/revisions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56492 - "GET /spaces/0c4ae2795c86b5f032c059a3e2d45475/pages/self-jarvis/evidence HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44698 - "GET /spaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44698 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:37918 - "POST /spaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37932 - "GET /spaces/59a963322f7c8a4bf64f05701648e05f/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37942 - "GET /spaces/59a963322f7c8a4bf64f05701648e05f/pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37944 - "GET /spaces/59a963322f7c8a4bf64f05701648e05f/pages HTTP/1.1" 200 OK

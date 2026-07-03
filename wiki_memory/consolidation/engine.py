@@ -62,6 +62,13 @@ class ConsolidationEngine:
         trigger: str = "manual",
         max_sources: int = 20,
     ) -> ConsolidationRun:
+        # space 级互斥：上游可能并发触发（新会话/上下文压缩/夜间批处理撞车），同一批
+        # pending 材料只该被蒸馏一次。发现进行中的固化直接返回它（幂等语义）；
+        # 超过陈旧阈值的 running 视为死运行（进程崩溃残留），放行新跑。
+        active = run_repo.find_active(session, space.id, stale_seconds=1800)
+        if active is not None:
+            return active
+
         pending = source_repo.list_pending(session, space.id, max_sources)
         run = run_repo.create(session, space.id, trigger, [s.id for s in pending])
 

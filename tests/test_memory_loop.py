@@ -247,3 +247,40 @@ def test_archive_and_delete_space(client, fake_llm):
     counts = client.delete(f"/spaces/{uid}").json()
     assert counts["pages"] == 1 and counts["sources"] >= 1
     assert client.get(f"/spaces/{uid}/index").status_code == 404
+
+
+def test_consolidate_mutex_returns_active_run(fake_llm):
+    """同 space 已有进行中的固化时，再触发直接返回该 run（不双跑 LLM）；陈旧 running 放行新跑。"""
+    from datetime import timedelta
+
+    from sqlalchemy.pool import StaticPool
+    from sqlmodel import Session, SQLModel, create_engine
+
+    from wiki_memory.consolidation.engine import ConsolidationEngine
+    from wiki_memory.models import ConsolidationRun, RunStatus, Space, utcnow
+
+    engine_db = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    SQLModel.metadata.create_all(engine_db)
+    engine = ConsolidationEngine(fake_llm)
+    with Session(engine_db) as session:
+        space = Space(owner_id="u6", subject_id="r6")
+        session.add(space)
+        session.commit()
+        session.refresh(space)
+
+        # 有进行中的固化 → 直接返回它，不新建、不调 LLM
+        active = ConsolidationRun(space_id=space.id, status=RunStatus.running)
+        session.add(active)
+        session.commit()
+        session.refresh(active)
+        got = engine.run(session, space)
+        assert got.id == active.id and fake_llm.calls == []
+
+        # running 但已陈旧（视为死运行）→ 放行新跑（无 pending → 直接 succeeded）
+        active.started_at = utcnow() - timedelta(seconds=3600)
+        session.add(active)
+        session.commit()
+        fresh = engine.run(session, space)
+        assert fresh.id != active.id and fresh.status == RunStatus.succeeded
