@@ -1,7 +1,8 @@
 """source 仓储：经历材料的 ingest 与读取。
 
-source 不可变：只有新增与状态流转（pending → consolidated/skipped），
-没有更新和删除内容的入口。
+内容不可更新：只有新增与状态流转（pending → consolidated/skipped）。
+删除只发生在 delete-by-source 隐私回收（deletion.py），不提供
+随意删改内容的入口。
 """
 
 import hashlib

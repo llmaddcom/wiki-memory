@@ -78,7 +78,55 @@ post(f"/spaces/{uid}/sources", json={"kind": "turn",
 post(f"/spaces/{uid}/consolidate", json={"trigger": "session_end"})
 ```
 
-## 5. 记忆预览
+## 5. 按上游来源删除（delete-by-source）
+
+上游删除原始数据（典型：用户删除一个会话）时，须连带遗忘由它沉淀的记忆——
+数据主权优先于"记忆不可删"的拟人比喻，删除语义 = **隐私删除**。匹配键是
+ingest 时随 source 存入的 `external_ref`：请求体里给出的键值对做**子集匹配**
+（每个键都相等才命中）。至少传一个键，应带上 `system`，推荐
+`{"system": "...", "session_id": "..."}`。
+
+**预览（dry-run，不动库）**，供删除确认对话框展示"将遗忘 N 条、M 条因还有
+其他来源会保留"：
+
+```
+POST /spaces/{uid}/sources/delete-by-ref/preview
+{"external_ref": {"system": "myapp", "session_id": "s-42"}}
+→ {"matched_sources": 3, "matched_source_ids": [7, 8, 9],
+   "pages_to_delete": ["…"], "pages_to_reconsolidate": ["…"]}
+```
+
+**执行（不可恢复）**：
+
+```
+POST /spaces/{uid}/sources/delete-by-ref
+{"external_ref": {"system": "myapp", "session_id": "s-42"}}
+→ {"deleted_sources": 3, "deleted_pages": ["…"],
+   "reconsolidated_pages": ["…"], "run_id": 12}
+```
+
+处置规则：
+
+- 命中的 source **硬删除**（content 是含隐私的全文快照，tombstone/归档
+  不满足隐私删除语义）。
+- 经证据链（evidence）回收受影响页面：
+  - **唯一证据全部来自被删 source** 的页面：删除，含全部修订历史
+    （修订正文可能引述被删内容，仅归档不够）；
+  - **还有其他证据**的页面：剔除对应 evidence 行，用剩余 source 触发
+    针对性重固化重写正文，确保被删内容不再出现在页面与后续修订中，
+    结论本身若仍有支撑则保留。
+- 返回执行汇总供上游审计留痕；`run_id` 关联本次运行日志（token 开销、
+  触碰页面）。重固化失败时**整体回退**（未做任何删除）返回 502，可重试。
+
+删除边界：
+
+- 只回收**直接证据**。页面间 `[[链接]]`、经既往合并产生的间接影响不追溯
+  （追溯会退化为删全库）；指向被删页面的链接变悬空——不是错误，交给
+  后续固化的悬空愈合/清理。
+- 当日日记的重生成/删除是上游职责；wiki-memory 只见到 `kind=diary` 的
+  source,同样按上述 external_ref 语义回收。
+
+## 6. 记忆预览
 
 浏览器打开 `/ui`，输入 space uid 即可 Obsidian 式浏览：索引分组、页面正文、
 [[互链]] 跳转（悬空标红）、修订历史、出处下钻、来源与固化日志。
