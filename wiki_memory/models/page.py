@@ -1,7 +1,8 @@
 """page 表：wiki 页面的当前认识（皮层语义记忆）。
 
-正文是 markdown（含 [[slug]] 互链），面向 LLM 消费；summary 是一行
-高密度摘要，索引页由它拼出，召回先读索引再展开全文。
+正文是 markdown（含 [[slug]] 互链），面向 LLM 消费；写法是短要点与
+按时间排序的事件流，不是长文（见 consolidation/prompts.py 的正文写法）。
+summary 是一行高密度摘要，索引页由它拼出，召回先读索引再展开全文。
 六种类型对应人类记忆分型（教训/大事记/人物/认识/经验/自我），
 每型的正文分节模板见 consolidation/prompts.py。
 页面只能经固化引擎或回滚改写，(space_id, slug) 唯一。
