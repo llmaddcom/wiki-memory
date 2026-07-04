@@ -1,7 +1,10 @@
-"""source 表：不可变的经历材料快照（海马体输入）。
+"""source 表：经历材料的全文快照（海马体输入）。
 
-只增不改：内容全文快照进库（content + content_hash），上游删除原文
-不影响记忆的证据链。external_ref 记录上游出处（系统名 + id 等）。
+内容只增不改（content + content_hash 快照进库），但**可被连带删除**：
+上游删除原文（如用户删除会话）时按 external_ref 匹配硬删对应 source，
+并经证据链回收受影响页面（隐私删除语义，见 deletion.py 与
+docs/contract.md）。external_ref 记录上游出处（系统名 + id 等），
+它同时是删除时的匹配键。
 salience 是写入方给的显著性信号（用户纠正 / 任务失败 / 被要求记住 → 调高），
 固化时供 LLM 参考。status 构成固化的工作队列：
 pending（待固化）→ consolidated（已产生页面变更）/ skipped（判定不值得长期保留）。

@@ -7,7 +7,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..models import PageType, SourceKind
 
@@ -27,6 +27,40 @@ class SourceIngest(BaseModel):
     occurred_at: Optional[datetime] = None
     external_ref: Optional[dict] = None
     salience: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class DeleteBySourceRequest(BaseModel):
+    """按上游出处删除：external_ref 子集匹配。至少传一个键；上游应带上
+    system（如 {"system": "createrole", "session_id": "…"}），避免误伤
+    其他系统写入的同名 id。"""
+
+    external_ref: dict
+
+    @field_validator("external_ref")
+    @classmethod
+    def _non_empty(cls, v: dict) -> dict:
+        if not v:
+            raise ValueError("external_ref 至少需要一个键（推荐 system + session_id）")
+        return v
+
+
+class DeleteBySourcePreview(BaseModel):
+    """dry-run 影响面：供上游在删除确认对话框展示
+    "将遗忘 N 条记忆、M 条因还有其他来源会保留"。"""
+
+    matched_sources: int
+    matched_source_ids: list[int]
+    pages_to_delete: list[str]          # 唯一证据全来自被删 source → 将连历史删除
+    pages_to_reconsolidate: list[str]   # 还有其他证据 → 剔证据 + 重固化，结论可能保留
+
+
+class DeleteBySourceResult(BaseModel):
+    """执行汇总（上游审计留痕）；run_id 关联本次删除的固化运行日志。"""
+
+    deleted_sources: int
+    deleted_pages: list[str]
+    reconsolidated_pages: list[str]
+    run_id: Optional[int] = None
 
 
 class IndexEntry(BaseModel):
