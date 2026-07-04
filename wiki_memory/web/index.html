@@ -6,116 +6,257 @@
 <title>wiki-memory 记忆预览</title>
 <style>
   :root{
-    --bg:#1e1e20; --bg2:#252529; --bg3:#2c2c31; --line:#3a3a40;
-    --fg:#dcddde; --dim:#9a9aa3; --accent:#a882ff; --accent2:#7bc3ff;
-    --danger:#ff8a8a; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --bg:#14141b; --bg2:#1b1b24; --bg3:#232330; --line:#30303c;
+    --fg:#d9dae2; --dim:#8e8fa0; --faint:#5c5d6e;
+    --accent:#a98cf5; --danger:#ff8a8a;
+    --c-lesson:#e8836f; --c-event:#6fb3e8; --c-person:#eebf6d;
+    --c-belief:#a98cf5; --c-procedure:#63d6a3; --c-self:#e08cc5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);
-    font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column}
-  header{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--line)}
-  header b{color:var(--accent);margin-right:6px;white-space:nowrap}
-  input,select,button{background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:6px 10px;font-size:13px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.7 var(--sans);
+    height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* ── 顶栏 ─────────────────────────────── */
+  header{display:flex;gap:8px;align-items:center;padding:9px 14px;
+    background:var(--bg2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header .brand{font-family:var(--mono);font-size:13px;letter-spacing:.06em;
+    color:var(--accent);white-space:nowrap;margin-right:4px}
+  input{background:var(--bg3);border:1px solid var(--line);color:var(--fg);
+    border-radius:6px;padding:5px 10px;font-size:13px;font-family:var(--mono)}
   input:focus{outline:1px solid var(--accent)}
-  button{cursor:pointer} button:hover{border-color:var(--accent)}
+  header button{background:var(--bg3);border:1px solid var(--line);color:var(--fg);
+    border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer}
+  header button:hover{border-color:var(--accent)}
+  #stat{color:var(--faint);font-family:var(--mono);font-size:11.5px}
+  nav.views{display:flex;gap:2px;margin-left:auto;background:var(--bg);
+    border:1px solid var(--line);border-radius:8px;padding:2px}
+  nav.views button{border:none;background:none;color:var(--dim);border-radius:6px;
+    padding:4px 12px;font-size:12.5px;cursor:pointer}
+  nav.views button.on{background:var(--bg3);color:var(--fg)}
+  nav.views button:hover{color:var(--fg)}
+
+  /* ── 布局 ─────────────────────────────── */
   #layout{flex:1;display:flex;min-height:0}
-  #sidebar{width:300px;background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column}
-  #filter{margin:10px;padding:6px 10px}
-  #tree{flex:1;overflow:auto;padding:0 6px 12px}
+  #sidebar{width:288px;background:var(--bg2);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;flex-shrink:0}
+  #legend{padding:12px 12px 8px;display:flex;flex-wrap:wrap;gap:5px;border-bottom:1px solid var(--line)}
+  .leg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;cursor:pointer;
+    padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:none;
+    color:var(--fg);user-select:none}
+  .leg .swatch{width:8px;height:8px;border-radius:50%;background:var(--tc)}
+  .leg small{color:var(--faint);font-family:var(--mono)}
+  .leg.off{opacity:.35}
+  .leg:hover{border-color:var(--tc)}
+  #filter{margin:10px 12px 4px;padding:5px 10px;font-family:var(--sans)}
+  #tree{flex:1;overflow:auto;padding:2px 6px 12px}
   .group{margin-top:10px}
-  .group>.gh{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;padding:2px 8px}
-  .item{display:block;padding:4px 8px;border-radius:6px;color:var(--fg);text-decoration:none;cursor:pointer;
+  .group>.gh{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+    color:var(--dim);padding:2px 8px;display:flex;align-items:center;gap:6px}
+  .group>.gh .swatch{width:7px;height:7px;border-radius:50%;background:var(--tc)}
+  .item{display:block;width:100%;text-align:left;padding:4px 8px 4px 21px;border-radius:6px;
+    border:none;background:none;color:var(--fg);font-size:13px;cursor:pointer;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .item:hover{background:var(--bg3)} .item.active{background:#3b3252;color:#fff}
-  .item small{color:var(--dim)}
-  #main{flex:1;overflow:auto;padding:26px 40px;min-width:0}
-  #main .meta{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}
-  .chip{font-size:11px;padding:2px 10px;border-radius:999px;background:var(--bg3);color:var(--dim);border:1px solid var(--line)}
-  .chip.t{color:var(--accent);border-color:#4b3f6e}
-  h1.pt{margin:0;font-size:26px}
-  article h2{border-bottom:1px solid var(--line);padding-bottom:4px;margin-top:26px;font-size:18px}
-  article code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12.5px}
-  article a.wl{color:var(--accent2);text-decoration:none;border-bottom:1px dashed #4a6a8a}
-  article a.wl.dang{color:var(--danger);border-bottom-color:#7a4444;cursor:help}
-  article ul{padding-left:22px}
-  .panel{margin-top:30px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .panel>.ph{padding:8px 14px;background:var(--bg2);cursor:pointer;font-size:13px;color:var(--dim);user-select:none}
+  .item:hover{background:var(--bg3)} .item.active{background:#332c4d;color:#fff}
+  .item small{color:var(--faint);font-family:var(--mono);font-size:11px}
+  #main{flex:1;overflow:auto;padding:26px 40px;min-width:0;position:relative}
+  #main.flush{padding:0;overflow:hidden}
+  .empty{color:var(--faint);margin-top:80px;text-align:center;font-size:13px}
+
+  /* ── 页面阅读 ──────────────────────────── */
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px;align-items:center}
+  .chip{font-size:11px;padding:2px 10px;border-radius:999px;background:var(--bg3);
+    color:var(--dim);border:1px solid var(--line);font-family:var(--mono)}
+  .chip.t{color:var(--tc);border-color:color-mix(in srgb,var(--tc) 45%,var(--bg))}
+  h1.pt{margin:0;font-size:25px;line-height:1.3}
+  .lede{color:var(--dim);font-size:13px;margin-bottom:6px}
+  article{max-width:760px}
+  article h2,article h3,article h4,article h5{border-bottom:1px solid var(--line);
+    padding-bottom:4px;margin-top:26px;font-size:17px}
+  article code{background:var(--bg3);padding:1px 5px;border-radius:4px;
+    font-family:var(--mono);font-size:12.5px}
+  article a.wl{color:#8fc7ff;text-decoration:none;border-bottom:1px dashed #4a6a8a;cursor:pointer}
+  article a.wl.dang{color:var(--danger);border-bottom:1px dashed #7a4444;cursor:help}
+  article ul,article ol{padding-left:22px}
+  article li{margin:3px 0}
+  .panel{margin-top:26px;border:1px solid var(--line);border-radius:8px;overflow:hidden;max-width:760px}
+  .panel>.ph{padding:8px 14px;background:var(--bg2);cursor:pointer;font-size:12.5px;
+    color:var(--dim);user-select:none;border:none;width:100%;text-align:left}
   .panel>.pb{padding:6px 14px 12px;display:none}
   .panel.open>.pb{display:block}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-  th{color:var(--dim);font-weight:500}
-  .empty{color:var(--dim);margin-top:60px;text-align:center}
-  .tabs{display:flex;gap:4px;margin-left:auto}
-  .tabs button.on{border-color:var(--accent);color:var(--accent)}
-  pre.src{white-space:pre-wrap;background:var(--bg3);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:12px;max-height:200px;overflow:auto}
-  .badge{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-family:var(--mono);font-size:11px;letter-spacing:.05em}
+  td .mono, .mono{font-family:var(--mono);font-size:12px}
+  pre.src{white-space:pre-wrap;background:var(--bg3);border-radius:6px;padding:8px 12px;
+    font-family:var(--mono);font-size:12px;max-height:220px;overflow:auto}
+  .badge{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-family:var(--mono)}
   .b-pending{color:#ffd479} .b-consolidated{color:#8fe38f} .b-skipped{color:var(--dim)}
   .b-succeeded{color:#8fe38f} .b-failed{color:var(--danger)} .b-running{color:#ffd479}
+  a.wl{color:#8fc7ff;cursor:pointer;text-decoration:none}
+
+  /* ── 图谱 ─────────────────────────────── */
+  #graph{width:100%;height:100%;display:block;cursor:grab}
+  #graph.dragging{cursor:grabbing}
+  .edge{stroke:#3d3d4d;stroke-width:1.1}
+  .node circle{stroke:var(--bg);stroke-width:1.5;cursor:pointer;
+    transition:opacity .18s}
+  .node.ghost circle{fill:none;stroke:var(--faint);stroke-dasharray:3 3;stroke-width:1.2}
+  .node text{font:11px var(--sans);fill:var(--dim);pointer-events:none;
+    transition:opacity .18s}
+  .node.ghost text{fill:var(--faint);font-style:italic}
+  #graph.focus .node{opacity:.13}
+  #graph.focus .edge{opacity:.08}
+  #graph.focus .node.lit{opacity:1}
+  #graph.focus .node.lit text{fill:var(--fg)}
+  #graph.focus .edge.lit{opacity:1;stroke:#6a6a85}
+  #gtip{position:absolute;left:0;top:0;pointer-events:none;background:var(--bg2);
+    border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px;
+    max-width:300px;display:none;box-shadow:0 6px 24px #0008;z-index:5}
+  #gtip b{display:block;font-size:13px}
+  #gtip .s{color:var(--dim)}
+  #gtip .k{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  #ghint{position:absolute;right:16px;bottom:12px;color:var(--faint);
+    font-family:var(--mono);font-size:11px;pointer-events:none}
+
+  /* ── 时间轴 ────────────────────────────── */
+  #tl{max-width:720px;position:relative;padding-left:118px}
+  #tl::before{content:"";position:absolute;left:96px;top:6px;bottom:6px;width:1px;
+    background:var(--line)}
+  .tl-day{position:relative;margin:0 0 26px}
+  .tl-date{position:absolute;left:-118px;width:86px;text-align:right;
+    font-family:var(--mono);font-size:11px;color:var(--dim);top:5px}
+  .tl-item{position:relative;padding:2px 0 2px 12px;cursor:pointer;border-radius:6px}
+  .tl-item:hover{background:var(--bg2)}
+  .tl-item::before{content:"";position:absolute;left:-26px;top:11px;width:9px;height:9px;
+    border-radius:50%;background:var(--tc);border:2px solid var(--bg)}
+  .tl-item .t{font-size:14px}
+  .tl-item .t b{font-weight:600}
+  .tl-item .s{color:var(--dim);font-size:12.5px;line-height:1.55}
+  .tl-item .k{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+  @media (max-width:760px){
+    #sidebar{display:none}
+    #main{padding:20px 16px}
+    #tl{padding-left:14px} #tl::before{left:0} .tl-date{position:static;text-align:left;width:auto;display:block;margin-bottom:4px}
+    .tl-item::before{left:-18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .node circle,.node text,.edge{transition:none}
+  }
 </style>
 </head>
 <body>
 <header>
-  <b>🧠 wiki-memory</b>
-  <input id="uid" placeholder="space uid" size="34">
-  <input id="key" placeholder="X-API-Key（未设置可留空）" size="22" type="password">
+  <span class="brand">🧠 wiki-memory</span>
+  <input id="uid" placeholder="space uid" size="30">
+  <input id="key" placeholder="X-API-Key（未设置可留空）" size="18" type="password">
   <button onclick="load()">加载</button>
-  <span id="stat" style="color:var(--dim);font-size:12px"></span>
-  <nav class="tabs">
-    <button id="tab-pages" class="on" onclick="setTab('pages')">页面</button>
-    <button id="tab-sources" onclick="setTab('sources')">来源</button>
-    <button id="tab-runs" onclick="setTab('runs')">固化日志</button>
+  <span id="stat"></span>
+  <nav class="views">
+    <button id="v-graph" onclick="setView('graph')">图谱</button>
+    <button id="v-timeline" onclick="setView('timeline')">时间轴</button>
+    <button id="v-page" onclick="setView('page')">页面</button>
+    <button id="v-sources" onclick="setView('sources')">来源</button>
+    <button id="v-runs" onclick="setView('runs')">固化日志</button>
   </nav>
 </header>
 <div id="layout">
   <aside id="sidebar">
+    <div id="legend"></div>
     <input id="filter" placeholder="过滤页面…" oninput="renderTree()">
     <div id="tree"></div>
   </aside>
   <section id="main"><div class="empty">输入 space uid 后加载记忆库</div></section>
 </div>
 <script>
-const TYPE_CN = {lesson:"教训", event:"大事记", person:"人物", belief:"认识", procedure:"经验", self:"自我"};
-let INDEX = [], SLUGS = new Set(), TAB = "pages", CURRENT = null;
+const TYPES = ["lesson","event","person","belief","procedure","self"];
+const TYPE_CN = {lesson:"教训", event:"大事记", person:"人物", belief:"认识",
+                 procedure:"经验", self:"自我"};
+const TC = t => `var(--c-${t})`;
 
+let PAGES=[], LINKS=[], SLUGS=new Set(), BYID={}, BYSLUG={};
+let VIEW="graph", CURRENT=null, ACTIVE=new Set(TYPES);
+let SIM=null;   // 图谱模拟状态
+
+const $ = id => document.getElementById(id);
 const api = p => fetch(p, {headers: keyHeader()}).then(r => {
   if (!r.ok) throw new Error(r.status + " " + p); return r.json();
 });
-const keyHeader = () => { const k = document.getElementById("key").value.trim();
-  return k ? {"X-API-Key": k} : {}; };
-const uid = () => document.getElementById("uid").value.trim();
-const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const keyHeader = () => { const k = $("key").value.trim(); return k ? {"X-API-Key": k} : {}; };
+const uid = () => $("uid").value.trim();
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const dt = s => String(s).slice(0,16).replace("T"," ");
+const main = html => { const m=$("main"); m.classList.remove("flush"); m.innerHTML = html; };
 
 async function load(){
   if(!uid()) return;
-  localStorage.setItem("wm_uid", uid()); localStorage.setItem("wm_key", document.getElementById("key").value);
+  localStorage.setItem("wm_uid", uid()); localStorage.setItem("wm_key", $("key").value);
   try{
-    INDEX = await api(`/spaces/${uid()}/index`);
-    SLUGS = new Set(INDEX.map(e=>e.slug));
-    document.getElementById("stat").textContent = `${INDEX.length} 页`;
-    renderTree();
+    [PAGES, LINKS] = await Promise.all([
+      api(`/spaces/${uid()}/pages`), api(`/spaces/${uid()}/links`)]);
+    BYID={}; BYSLUG={};
+    for (const p of PAGES){ BYID[p.id]=p; BYSLUG[p.slug]=p; }
+    SLUGS = new Set(PAGES.map(p=>p.slug));
+    $("stat").textContent = `${PAGES.length}页 ${LINKS.length}链`;
+    SIM = null;
+    renderLegend(); renderTree();
     const slug = location.hash.slice(1);
     if (slug && SLUGS.has(slug)) openPage(slug);
-    else main(INDEX.length ? '<div class="empty">从左侧选择一页</div>' : '<div class="empty">wiki 还是空的——ingest 一些 source 并触发固化</div>');
+    else setView(PAGES.length ? VIEW : "page");
   }catch(e){ main(`<div class="empty">加载失败：${esc(e.message)}</div>`); }
 }
 
-const main = html => document.getElementById("main").innerHTML = html;
+/* ── 类型筛选图例 ── */
+function renderLegend(){
+  const counts = {};
+  for (const p of PAGES) counts[p.type] = (counts[p.type]||0)+1;
+  $("legend").innerHTML = TYPES.map(t=>`
+    <button class="leg ${ACTIVE.has(t)?'':'off'}" style="--tc:${TC(t)}" onclick="toggleType('${t}')">
+      <span class="swatch"></span>${TYPE_CN[t]}<small>${counts[t]||0}</small>
+    </button>`).join("");
+}
+function toggleType(t){
+  ACTIVE.has(t) ? ACTIVE.delete(t) : ACTIVE.add(t);
+  renderLegend(); renderTree();
+  if (VIEW==="graph") drawGraph();
+  else if (VIEW==="timeline") showTimeline();
+}
+const visible = () => PAGES.filter(p => ACTIVE.has(p.type));
 
+/* ── 左侧页面树 ── */
 function renderTree(){
-  const q = document.getElementById("filter").value.toLowerCase();
+  const q = $("filter").value.toLowerCase();
   const groups = {};
-  for (const e of INDEX){
-    if (q && !(e.slug+e.title+e.summary).toLowerCase().includes(q)) continue;
-    (groups[e.type] ||= []).push(e);
+  for (const p of visible()){
+    if (q && !(p.slug+p.title+p.summary).toLowerCase().includes(q)) continue;
+    (groups[p.type] ||= []).push(p);
   }
-  document.getElementById("tree").innerHTML = Object.entries(groups).map(([t, es]) => `
-    <div class="group"><div class="gh">${TYPE_CN[t]||t} · ${es.length}</div>
-    ${es.map(e=>`<a class="item ${CURRENT===e.slug?'active':''}" onclick="openPage('${e.slug}')"
-      title="${esc(e.summary)}">${esc(e.title)} <small>${e.slug}</small></a>`).join("")}</div>`).join("")
+  $("tree").innerHTML = TYPES.filter(t=>groups[t]).map(t=>`
+    <div class="group"><div class="gh" style="--tc:${TC(t)}"><span class="swatch"></span>${TYPE_CN[t]} · ${groups[t].length}</div>
+    ${groups[t].map(p=>`<button class="item ${CURRENT===p.slug?'active':''}" onclick="openPage('${p.slug}')"
+      title="${esc(p.summary)}">${esc(p.title)} <small>${p.slug}</small></button>`).join("")}</div>`).join("")
     || '<div class="empty" style="margin-top:20px">无匹配页面</div>';
 }
 
-// 极简 markdown 渲染：够预览用（标题/粗斜体/行内码/列表/[[链接]]）
+/* ── 视图切换 ── */
+function setView(v){
+  VIEW = v;
+  for (const x of ["graph","timeline","page","sources","runs"])
+    $("v-"+x).classList.toggle("on", x===v);
+  if (v==="graph") showGraph();
+  else if (v==="timeline") showTimeline();
+  else if (v==="sources") showSources();
+  else if (v==="runs") showRuns();
+  else if (CURRENT) openPage(CURRENT);
+  else main(PAGES.length ? '<div class="empty">从左侧选择一页</div>'
+                         : '<div class="empty">wiki 还是空的——ingest 一些 source 并触发固化</div>');
+}
+
+/* ── 极简 markdown（标题/粗斜体/行内码/列表/[[链接]]）── */
 function md(src){
   let h = esc(src);
   h = h.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g, (_, tgt, label) => {
@@ -125,16 +266,20 @@ function md(src){
   });
   h = h.replace(/`([^`]+)`/g,"<code>$1</code>")
        .replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/\*([^*]+)\*/g,"<i>$1</i>");
+  // 标题行前后即使只有单换行也切成独立块
+  h = h.replace(/(^|\n) *(#{1,6} [^\n]*)/g, "\n\n$2\n\n");
   return h.split(/\n{2,}/).map(block => {
     const b = block.trim(); if(!b) return "";
     if (/^#{1,6} /.test(b)) { const n = b.match(/^#+/)[0].length; return `<h${Math.min(n+1,5)}>${b.replace(/^#+ /,"")}</h${Math.min(n+1,5)}>`; }
+    if (/^\d+\. /m.test(b)) return "<ol>" + b.split("\n").map(l=>l.replace(/^\d+\. (.*)/,"<li>$1</li>")).join("") + "</ol>";
     if (/^([-*] )/m.test(b)) return "<ul>" + b.split("\n").map(l=>l.replace(/^[-*] (.*)/,"<li>$1</li>")).join("") + "</ul>";
     return `<p>${b.replace(/\n/g,"<br>")}</p>`;
   }).join("");
 }
 
+/* ── 页面阅读 ── */
 async function openPage(slug){
-  setTab("pages", true); CURRENT = slug; location.hash = slug; renderTree();
+  VIEW="page"; setViewButtons("page"); CURRENT = slug; location.hash = slug; renderTree();
   try{
     const [p, revs, ev] = await Promise.all([
       api(`/spaces/${uid()}/pages/${slug}`),
@@ -142,42 +287,218 @@ async function openPage(slug){
       api(`/spaces/${uid()}/pages/${slug}/evidence`)]);
     main(`
       <h1 class="pt">${esc(p.title)}</h1>
-      <div class="meta">
+      <div class="meta" style="--tc:${TC(p.type)}">
         <span class="chip t">${TYPE_CN[p.type]||p.type}</span><span class="chip">${p.slug}</span>
         ${p.confidence!=null?`<span class="chip">置信度 ${p.confidence}</span>`:""}
         <span class="chip">第 ${revs.length} 版</span>
-        <span class="chip">更新于 ${p.updated_at.slice(0,16).replace("T"," ")}</span>
+        <span class="chip">更新 ${dt(p.updated_at)}</span>
+        ${p.status==="archived"?`<span class="chip" style="color:var(--danger)">已归档</span>`:""}
       </div>
-      <div style="color:var(--dim);font-size:13px;margin-bottom:6px">${esc(p.summary)}</div>
+      <div class="lede">${esc(p.summary)}</div>
       <article>${md(p.body)}</article>
-      <div class="panel"><div class="ph" onclick="this.parentNode.classList.toggle('open')">📜 修订历史（${revs.length}）</div>
+      <div class="panel"><button class="ph" onclick="this.parentNode.classList.toggle('open')">📜 修订历史（${revs.length}）</button>
         <div class="pb"><table><tr><th>版</th><th>原因</th><th>触发</th><th>时间</th></tr>
-        ${revs.map(r=>`<tr><td>${r.seq}</td><td>${esc(r.change_reason)}</td><td>${r.trigger}</td><td>${r.created_at.slice(0,16).replace("T"," ")}</td></tr>`).join("")}
+        ${revs.map(r=>`<tr><td>${r.seq}</td><td>${esc(r.change_reason)}</td><td class="mono">${r.trigger}</td><td class="mono">${dt(r.created_at)}</td></tr>`).join("")}
         </table></div></div>
-      <div class="panel"><div class="ph" onclick="this.parentNode.classList.toggle('open')">🔗 出处（${ev.length}）</div>
+      <div class="panel"><button class="ph" onclick="this.parentNode.classList.toggle('open')">🔗 出处（${ev.length}）</button>
         <div class="pb"><table><tr><th>版</th><th>依据 source</th><th>类型</th><th>发生时间</th></tr>
-        ${ev.map(e=>`<tr><td>${e.revision_seq}</td><td>#${e.source_id}</td><td>${e.source_kind}</td><td>${String(e.source_occurred_at).slice(0,16).replace("T"," ")}</td></tr>`).join("")}
+        ${ev.map(e=>`<tr><td>${e.revision_seq}</td><td class="mono">#${e.source_id}</td><td class="mono">${e.source_kind}</td><td class="mono">${dt(e.source_occurred_at)}</td></tr>`).join("")}
         </table></div></div>`);
   }catch(e){ main(`<div class="empty">读取页面失败：${esc(e.message)}</div>`); }
 }
-
-function setTab(t, silent){
-  TAB = t;
-  for (const x of ["pages","sources","runs"])
-    document.getElementById("tab-"+x).classList.toggle("on", x===t);
-  if (silent) return;
-  if (t==="sources") showSources();
-  else if (t==="runs") showRuns();
-  else main(CURRENT ? "" : '<div class="empty">从左侧选择一页</div>') || (CURRENT && openPage(CURRENT));
+function setViewButtons(v){
+  for (const x of ["graph","timeline","page","sources","runs"])
+    $("v-"+x).classList.toggle("on", x===v);
 }
 
+/* ══ 记忆星图：轻量力导向，无外部依赖 ══ */
+function showGraph(){
+  const m = $("main"); m.classList.add("flush");
+  m.innerHTML = `<svg id="graph"></svg><div id="gtip"></div>
+    <div id="ghint">拖动节点可重排 · 虚环 = 悬空链接（值得建页）</div>`;
+  if (!PAGES.length){ main('<div class="empty">wiki 还是空的——ingest 一些 source 并触发固化</div>'); return; }
+  buildSim(); drawGraph(); tick(true);
+}
+
+// slug 的确定性伪随机（布局可复现，避免每次刷新跳变）
+function hash01(s){ let h=2166136261; for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619);} return ((h>>>0)%1e6)/1e6; }
+
+function buildSim(){
+  const nodes=[], edges=[], key={};
+  for (const p of PAGES){
+    const n = {id:"p"+p.id, page:p, slug:p.slug, ghost:false, deg:0,
+      x:0, y:0, vx:0, vy:0};
+    key[n.id]=n; nodes.push(n);
+  }
+  for (const l of LINKS){
+    const from = key["p"+l.from_page_id]; if (!from) continue;
+    let to;
+    if (l.to_page_id != null) to = key["p"+l.to_page_id];
+    else {
+      to = key["g"+l.to_slug] ||= (nodes.push({id:"g"+l.to_slug, slug:l.to_slug,
+        ghost:true, deg:0, x:0, y:0, vx:0, vy:0}), nodes[nodes.length-1]);
+    }
+    if (!to || to===from) continue;
+    from.deg++; to.deg++;
+    edges.push({a:from, b:to});
+  }
+  const W = $("main").clientWidth, H = $("main").clientHeight;
+  for (const n of nodes){
+    const a = hash01(n.slug)*Math.PI*2, r = (0.18+0.3*hash01(n.slug+"r"))*Math.min(W,H);
+    n.x = W/2 + Math.cos(a)*r; n.y = H/2 + Math.sin(a)*r;
+  }
+  SIM = {nodes, edges, W, H, alpha:1, raf:null};
+}
+
+function simStep(){
+  const {nodes, edges, W, H} = SIM, a = SIM.alpha;
+  for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++){
+    const n=nodes[i], m=nodes[j];
+    let dx=n.x-m.x, dy=n.y-m.y, d2=dx*dx+dy*dy||1;
+    if (d2>90000) continue;
+    const f = 4200/d2*a;
+    const d=Math.sqrt(d2); dx/=d; dy/=d;
+    n.vx+=dx*f; n.vy+=dy*f; m.vx-=dx*f; m.vy-=dy*f;
+  }
+  for (const e of edges){
+    const dx=e.b.x-e.a.x, dy=e.b.y-e.a.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    const f=(d-135)*0.02*a;
+    e.a.vx+=dx/d*f; e.a.vy+=dy/d*f; e.b.vx-=dx/d*f; e.b.vy-=dy/d*f;
+  }
+  for (const n of nodes){
+    n.vx += (W/2-n.x)*0.004*a; n.vy += (H/2-n.y)*0.004*a;
+    if (!n.fixed){ n.x += n.vx; n.y += n.vy; }
+    n.vx*=0.82; n.vy*=0.82;
+    n.x=Math.max(24,Math.min(W-24,n.x)); n.y=Math.max(24,Math.min(H-24,n.y));
+  }
+  SIM.alpha = Math.max(0.02, a*0.985);
+}
+
+function tick(reheat){
+  if (reheat) SIM.alpha = 1;
+  cancelAnimationFrame(SIM.raf);
+  const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  if (still){ for(let i=0;i<300;i++) simStep(); position(); return; }
+  const loop = () => {
+    simStep(); position();
+    if (SIM.alpha > 0.021) SIM.raf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+function drawGraph(){
+  const svg = $("graph"); if (!svg || !SIM) return;
+  const vis = new Set(visible().map(p=>"p"+p.id));
+  const shown = SIM.nodes.filter(n => n.ghost
+    ? SIM.edges.some(e => e.b===n && vis.has(e.a.id))
+    : vis.has(n.id));
+  const shownSet = new Set(shown.map(n=>n.id));
+  const es = SIM.edges.filter(e => shownSet.has(e.a.id) && shownSet.has(e.b.id));
+  svg.innerHTML =
+    es.map((e,i)=>`<line class="edge" data-i="${i}"></line>`).join("") +
+    shown.map(n=>{
+      const r = 5 + Math.min(9, n.deg*1.6);
+      const fill = n.ghost ? "" : `fill="${getComputedStyle(document.documentElement).getPropertyValue('--c-'+n.page.type).trim()}"`;
+      const label = n.ghost ? n.slug : n.page.title;
+      return `<g class="node ${n.ghost?'ghost':''}" data-id="${n.id}" tabindex="0" role="button" aria-label="${esc(label)}">
+        <circle r="${r}" ${fill}></circle>
+        <text dx="${r+5}" dy="4">${esc(label)}</text></g>`;
+    }).join("");
+  SIM.shown = shown; SIM.es = es;
+  bindGraphEvents(svg);
+  position();
+}
+
+function position(){
+  const svg = $("graph"); if (!svg || !SIM.shown) return;
+  const gs = svg.querySelectorAll("g.node"), ls = svg.querySelectorAll("line.edge");
+  SIM.shown.forEach((n,i)=>{ const g=gs[i]; if(g) g.setAttribute("transform",`translate(${n.x},${n.y})`); });
+  SIM.es.forEach((e,i)=>{ const l=ls[i]; if(!l) return;
+    l.setAttribute("x1",e.a.x); l.setAttribute("y1",e.a.y);
+    l.setAttribute("x2",e.b.x); l.setAttribute("y2",e.b.y); });
+}
+
+function bindGraphEvents(svg){
+  const byId = {}; SIM.shown.forEach(n=>byId[n.id]=n);
+  let drag=null;
+  svg.onpointerdown = ev => {
+    const g = ev.target.closest("g.node"); if (!g) return;
+    drag = byId[g.dataset.id]; drag.fixed = true; svg.classList.add("dragging");
+    svg.setPointerCapture(ev.pointerId); SIM.alpha = Math.max(SIM.alpha, .3); tick();
+  };
+  svg.onpointermove = ev => {
+    const r = svg.getBoundingClientRect();
+    if (drag){ drag.x = ev.clientX-r.left; drag.y = ev.clientY-r.top; SIM.alpha=Math.max(SIM.alpha,.25); return; }
+    const g = ev.target.closest("g.node");
+    hoverNode(g ? byId[g.dataset.id] : null, ev.clientX-r.left, ev.clientY-r.top);
+  };
+  svg.onpointerup = svg.onpointercancel = () => {
+    if (drag){ drag.fixed=false; drag=null; svg.classList.remove("dragging"); }
+  };
+  svg.onpointerleave = () => hoverNode(null);
+  svg.onclick = ev => {
+    const g = ev.target.closest("g.node"); if (!g) return;
+    const n = byId[g.dataset.id];
+    if (!n.ghost) openPage(n.slug);
+  };
+  svg.onkeydown = ev => {
+    if (ev.key==="Enter"){ const g=ev.target.closest("g.node");
+      if (g && !byId[g.dataset.id].ghost) openPage(byId[g.dataset.id].slug); }
+  };
+}
+
+function hoverNode(n, mx, my){
+  const svg = $("graph"), tip = $("gtip"); if (!svg) return;
+  if (!n){ svg.classList.remove("focus"); if(tip) tip.style.display="none"; return; }
+  svg.classList.add("focus");
+  const lit = new Set([n.id]);
+  for (const e of SIM.es){ if (e.a===n) lit.add(e.b.id); if (e.b===n) lit.add(e.a.id); }
+  svg.querySelectorAll("g.node").forEach(g=>g.classList.toggle("lit", lit.has(g.dataset.id)));
+  svg.querySelectorAll("line.edge").forEach((l,i)=>{
+    const e=SIM.es[i]; l.classList.toggle("lit", e.a===n||e.b===n); });
+  if (tip){
+    tip.innerHTML = n.ghost
+      ? `<b>[[${esc(n.slug)}]]</b><span class="s">悬空链接——页面尚未建立，被引用即"值得建页"的信号</span>`
+      : `<b>${esc(n.page.title)}</b><span class="s">${esc(n.page.summary)}</span>
+         <span class="k">${TYPE_CN[n.page.type]} · ${n.slug} · ${dt(n.page.updated_at)}</span>`;
+    tip.style.display="block";
+    const mw = $("main").clientWidth;
+    tip.style.left = Math.min(mx+16, mw-320)+"px"; tip.style.top = (my+14)+"px";
+  }
+}
+
+/* ── 时间轴 ── */
+function showTimeline(){
+  const ps = visible().slice().sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
+  if (!ps.length){ main('<div class="empty">没有可显示的页面</div>'); return; }
+  const days = [];
+  for (const p of ps){
+    const d = p.updated_at.slice(0,10);
+    if (!days.length || days[days.length-1].d!==d) days.push({d, items:[]});
+    days[days.length-1].items.push(p);
+  }
+  main(`<h1 class="pt">时间轴</h1>
+    <div class="meta"><span class="chip">按最近更新排列 · ${ps.length} 页</span></div>
+    <div id="tl">${days.map(day=>`
+      <div class="tl-day">
+        <div class="tl-date">${day.d}</div>
+        ${day.items.map(p=>`
+        <div class="tl-item" style="--tc:${TC(p.type)}" onclick="openPage('${p.slug}')" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')openPage('${p.slug}')">
+          <div class="t"><b>${esc(p.title)}</b> <span class="k">${TYPE_CN[p.type]} · ${p.slug} · ${dt(p.updated_at).slice(11)}</span></div>
+          <div class="s">${esc(p.summary)}</div>
+        </div>`).join("")}
+      </div>`).join("")}</div>`);
+}
+
+/* ── 来源 / 固化日志 ── */
 async function showSources(){
   try{
     const ss = await api(`/spaces/${uid()}/sources`);
     main(`<h1 class="pt">来源（${ss.length}）</h1><div class="meta"><span class="chip">不可变经历材料 · 记忆的证据层</span></div>` +
       ss.slice().reverse().map(s=>`
-      <div class="panel open"><div class="ph">#${s.id} · ${s.kind} ·
-        <span class="badge b-${s.status}">${s.status}</span> · salience ${s.salience} · ${s.occurred_at.slice(0,16).replace("T"," ")}</div>
+      <div class="panel open"><button class="ph">#${s.id} · ${s.kind} ·
+        <span class="badge b-${s.status}">${s.status}</span> · salience ${s.salience} · ${dt(s.occurred_at)}</button>
       <div class="pb"><pre class="src">${esc(s.content)}</pre></div></div>`).join("")
       || '<div class="empty">尚无 source</div>');
   }catch(e){ main(`<div class="empty">${esc(e.message)}</div>`); }
@@ -189,16 +510,20 @@ async function showRuns(){
     main(`<h1 class="pt">固化日志（${rs.length}）</h1><div class="meta"><span class="chip">"睡眠"过程留痕</span></div>
       <table><tr><th>#</th><th>状态</th><th>触发</th><th>消费 source</th><th>动过的页</th><th>tokens</th><th>时间</th><th>错误</th></tr>
       ${rs.map(r=>`<tr><td>${r.id}</td><td><span class="badge b-${r.status}">${r.status}</span></td>
-        <td>${r.trigger}</td><td>${(r.source_ids||[]).join(", ")||"—"}</td>
+        <td class="mono">${r.trigger}</td><td class="mono">${(r.source_ids||[]).join(", ")||"—"}</td>
         <td>${(r.pages_touched||[]).map(s=>`<a class="wl" onclick="openPage('${s}')">${s}</a>`).join(", ")||"—"}</td>
-        <td>${r.prompt_tokens+r.completion_tokens}</td>
-        <td>${r.started_at.slice(0,16).replace("T"," ")}</td><td>${esc(r.error||"—")}</td></tr>`).join("")}
+        <td class="mono">${r.prompt_tokens+r.completion_tokens}</td>
+        <td class="mono">${dt(r.started_at)}</td><td>${esc(r.error||"—")}</td></tr>`).join("")}
       </table>`);
   }catch(e){ main(`<div class="empty">${esc(e.message)}</div>`); }
 }
 
-document.getElementById("uid").value = localStorage.getItem("wm_uid") || "";
-document.getElementById("key").value = localStorage.getItem("wm_key") || "";
+window.addEventListener("resize", () => {
+  if (VIEW==="graph" && SIM){ SIM.W=$("main").clientWidth; SIM.H=$("main").clientHeight; tick(true); }
+});
+
+$("uid").value = localStorage.getItem("wm_uid") || "";
+$("key").value = localStorage.getItem("wm_key") || "";
 if (uid()) load();
 </script>
 </body>
