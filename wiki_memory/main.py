@@ -32,4 +32,5 @@ def health():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8020)
+    # reload 模式要求传应用导入串而非实例，否则改代码不会自动重启
+    uvicorn.run("wiki_memory.main:app", host="0.0.0.0", port=8020, reload=True)
