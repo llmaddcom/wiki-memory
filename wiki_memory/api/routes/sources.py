@@ -13,6 +13,7 @@ from sqlmodel import Session
 from ... import deletion
 from ...db import get_session
 from ...llm import ChatLLM
+from ...locks import space_write_lock
 from ...models import Source, SourceStatus, Space
 from ...repositories import source_repo
 from .. import schemas
@@ -79,9 +80,12 @@ def delete_by_ref(
     """按 external_ref 硬删 source 并回收证据（隐私删除，不可恢复）。
 
     重固化失败时整体回退（未做任何删除），返回 502，上游可重试。
+    同一 space 的写入口互斥：上游连删多个会话时逐个串行执行，否则后
+    落库者会引用先落库者已硬删的 source（外键违规，见 locks.py）。
     """
     try:
-        return deletion.execute(session, space, payload.external_ref, llm)
+        with space_write_lock(space.id):
+            return deletion.execute(session, space, payload.external_ref, llm)
     except deletion.RedactionError as e:
         raise HTTPException(
             status_code=502, detail=f"重固化失败，未执行任何删除，可重试：{e}"

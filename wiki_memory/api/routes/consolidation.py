@@ -10,6 +10,7 @@ from sqlmodel import Session
 from ...config import settings
 from ...consolidation.engine import ConsolidationEngine
 from ...db import get_session
+from ...locks import space_write_lock
 from ...models import ConsolidationRun, Space
 from ...repositories import run_repo
 from .. import schemas
@@ -25,12 +26,14 @@ def consolidate(
     session: Session = Depends(get_session),
     engine: ConsolidationEngine = Depends(get_engine),
 ):
-    return engine.run(
-        session,
-        space,
-        trigger=payload.trigger,
-        max_sources=payload.max_sources or settings.consolidate_max_sources,
-    )
+    # 与 delete-by-ref 共用 space 写锁：固化引用的 source 不能被并发删除
+    with space_write_lock(space.id):
+        return engine.run(
+            session,
+            space,
+            trigger=payload.trigger,
+            max_sources=payload.max_sources or settings.consolidate_max_sources,
+        )
 
 
 @router.get("/spaces/{space_uid}/runs", response_model=list[ConsolidationRun])
