@@ -1,6 +1,10 @@
 """delete-by-source：预览影响面 → 硬删 source + 证据回收 + 混合页重固化 → 失败原子回退。"""
 
 import json
+import threading
+import time
+
+from wiki_memory.api.routes import sources as sources_route
 
 
 def _setup_space(client, fake_llm):
@@ -143,6 +147,52 @@ def test_execute_atomic_on_llm_failure(client, fake_llm):
     runs = client.get(f"/spaces/{uid}/runs").json()
     del_run = next(r for r in runs if r["trigger"] == "delete_by_source")
     assert del_run["status"] == "failed" and del_run["error"]
+
+
+def test_concurrent_delete_by_ref_serialized_per_space(client, fake_llm, monkeypatch):
+    """同一 space 的两个 delete-by-ref 必须串行执行。
+
+    线上事故：连删两个会话触发两个并发遗忘，后落库者在影响面评估时看到的
+    "剩余证据" source 已被先落库者硬删 → evidence 外键违规 → 500 整体回滚，
+    该会话的记忆残留。串行化后后者的评估发生在前者提交之后，不会再引用死 source。
+    """
+    r = client.post("/spaces", json={"owner_id": "u-race", "subject_id": "r-race"})
+    uid = r.json()["uid"]
+
+    overlap = {"active": 0, "max": 0}
+    guard = threading.Lock()
+    real_execute = sources_route.deletion.execute
+
+    def tracked_execute(session, space, ref, llm):
+        with guard:
+            overlap["active"] += 1
+            overlap["max"] = max(overlap["max"], overlap["active"])
+        time.sleep(0.1)  # 模拟重固化的 LLM 耗时，放大并发窗口
+        try:
+            return real_execute(session, space, ref, llm)
+        finally:
+            with guard:
+                overlap["active"] -= 1
+
+    monkeypatch.setattr(sources_route.deletion, "execute", tracked_execute)
+
+    statuses = []
+
+    def delete(session_id):
+        r = client.post(
+            f"/spaces/{uid}/sources/delete-by-ref",
+            json={"external_ref": {"system": "createrole", "session_id": session_id}},
+        )
+        statuses.append(r.status_code)
+
+    threads = [threading.Thread(target=delete, args=(sid,)) for sid in ("A", "B")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert statuses == [200, 200]
+    assert overlap["max"] == 1  # 任一时刻至多一个 delete-by-ref 在执行
 
 
 def test_execute_no_match_is_noop(client, fake_llm):
