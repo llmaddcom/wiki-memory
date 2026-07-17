@@ -16,4 +16,6 @@ class LLMError(Exception):
 
 
 class ChatLLM(Protocol):
-    def complete(self, system: str, user: str) -> ChatResult: ...
+    def complete(
+        self, system: str, user: str, response_format: dict | None = None
+    ) -> ChatResult: ...

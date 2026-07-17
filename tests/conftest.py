@@ -15,9 +15,11 @@ class FakeLLM:
     def __init__(self):
         self.responses: list[str] = []
         self.calls: list[tuple[str, str]] = []
+        self.response_formats: list[dict | None] = []  # 每次调用收到的 response_format
 
-    def complete(self, system: str, user: str) -> ChatResult:
+    def complete(self, system: str, user: str, response_format: dict | None = None) -> ChatResult:
         self.calls.append((system, user))
+        self.response_formats.append(response_format)
         if not self.responses:
             raise AssertionError("FakeLLM: no queued response")
         return ChatResult(text=self.responses.pop(0), prompt_tokens=10, completion_tokens=5)

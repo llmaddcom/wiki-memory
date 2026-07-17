@@ -12,19 +12,32 @@ class OpenAICompatLLM:
         self._model = model
         self._timeout = timeout
 
-    def complete(self, system: str, user: str) -> ChatResult:
+    def complete(
+        self, system: str, user: str, response_format: dict | None = None
+    ) -> ChatResult:
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0.2,
+        }
+        if response_format is not None:
+            # 结构化输出优先；端点不支持 response_format（400/501 等）时
+            # 降级重试一次纯文本模式，交给上层 parse_json_object 兜底解析。
+            try:
+                return self._request({**payload, "response_format": response_format})
+            except LLMError:
+                pass
+        return self._request(payload)
+
+    def _request(self, payload: dict) -> ChatResult:
         try:
             resp = httpx.post(
                 f"{self._base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                json={
-                    "model": self._model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": 0.2,
-                },
+                json=payload,
                 timeout=self._timeout,
             )
             resp.raise_for_status()

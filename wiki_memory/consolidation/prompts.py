@@ -42,9 +42,14 @@ CONSOLIDATE_SYSTEM = """\
 4. 互链：正文中提到其他页面的概念时用 [[slug]] 或 [[slug|显示文字]] 链接；链接到还不存在\
    的页也可以（这是"值得建页"的标记）。
 5. slug 用 kebab-case（小写、连字符），可含中文；同一主题永远用同一个 slug。
-6. summary 是一行话，未来的召回靠它决定要不要展开这一页，必须信息密度高。
-7. change_reason 一句话说清这次为什么改/建/归档。
-8. 每个操作必须带 source_ids：这次变更依据了哪些 source（出处审计链）。
+6. hook 是 ≤20 字的关键点，一眼指出这页的核心——写成名词短语或事实断言，如\
+   「她讨厌香菜」「日报别用周报格式」。禁止「关于…的记忆」「对…的一些认识」\
+   式的空话：hook 会被逐字注入对话作钩子行，每个字都要有信息量。
+7. happened_on 是该认识对应的关键日期（YYYY-MM-DD）；人物画像、长期信念等\
+   没有单一时间点的填 null，不要编造日期。
+8. summary 是一行话（≤300 字），未来的召回靠它决定要不要展开这一页，必须信息密度高。
+9. change_reason 一句话说清这次为什么改/建/归档。
+10. 每个操作必须带 source_ids：这次变更依据了哪些 source（出处审计链）。
 
 ## 输出格式
 
@@ -53,7 +58,10 @@ CONSOLIDATE_SYSTEM = """\
 {"operations": [
   {"op": "create" | "update" | "archive",
    "type": "lesson|event|person|belief|procedure|self",
-   "slug": "...", "title": "...", "summary": "...",
+   "slug": "...", "title": "...",
+   "hook": "≤20 字关键点",
+   "happened_on": "YYYY-MM-DD" 或 null,
+   "summary": "...",
    "body": "markdown 正文",
    "confidence": 0.0~1.0 或 null,
    "change_reason": "...",

@@ -53,11 +53,16 @@ def list_pages(
     return page_repo.list_pages(session, space.id, type=type, status=status)
 
 
-@router.get("/spaces/{space_uid}/pages/{slug}", response_model=Page)
+@router.get("/spaces/{space_uid}/pages/{slug}", response_model=schemas.PageDetail)
 def read_page(
     slug: str, space: Space = Depends(get_space), session: Session = Depends(get_session)
 ):
-    return _get_page_or_404(session, space, slug)
+    page = _get_page_or_404(session, space, slug)
+    # 全部修订关联 source 的发生日期，去重升序——联想工具据此翻对应日记
+    dates = sorted(
+        {f"{e['source_occurred_at']:%Y-%m-%d}" for e in evidence_repo.list_for_page(session, page.id)}
+    )
+    return schemas.PageDetail(**page.model_dump(), evidence_dates=dates)
 
 
 @router.get("/spaces/{space_uid}/pages/{slug}/revisions", response_model=list[PageRevision])
@@ -88,6 +93,8 @@ def rollback_page(
     if target is None:
         raise HTTPException(status_code=404, detail=f"revision seq={payload.seq} not found")
     page.title = target.title
+    page.hook = target.hook
+    page.happened_on = target.happened_on
     page.summary = target.summary
     page.body = target.body
     page.status = PageStatus.active
