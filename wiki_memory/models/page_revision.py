@@ -5,7 +5,7 @@ change_reason 一句话记录"为什么改"，trigger 记录改写来源
 （固化 / 手动 / 回滚），run_id 关联触发本版的固化运行。
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -28,6 +28,8 @@ class PageRevision(SQLModel, table=True):
     page_id: int = Field(foreign_key="page.id", index=True)
     seq: int
     title: str
+    hook: str = ""  # 与 Page 同步快照（回滚需还原三元结构）
+    happened_on: Optional[date] = None
     summary: str
     body: str = Field(sa_column=Column(Text, nullable=False))
     change_reason: str

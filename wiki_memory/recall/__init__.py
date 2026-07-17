@@ -11,7 +11,7 @@ from .base import RecallHit, RecallOutcome, RecallStrategy
 from .bm25 import Bm25Recall
 from .fuzzy import FuzzyRecall
 from .llm import LlmRecall
-from .render import render_context_block
+from .render import render_context_block, render_hook_block, resolve_hook
 
 METHODS = ("fuzzy", "bm25", "llm")
 
@@ -23,5 +23,7 @@ __all__ = [
     "Bm25Recall",
     "LlmRecall",
     "render_context_block",
+    "render_hook_block",
+    "resolve_hook",
     "METHODS",
 ]

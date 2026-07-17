@@ -45,6 +45,8 @@ def add(
         page_id=page.id,
         seq=(last.seq if last else 0) + 1,
         title=page.title,
+        hook=page.hook,
+        happened_on=page.happened_on,
         summary=page.summary,
         body=page.body,
         change_reason=change_reason,

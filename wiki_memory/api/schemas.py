@@ -4,12 +4,12 @@
 可直接注入 LLM 对话的标准文本块。
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..models import PageType, SourceKind
+from ..models import PageStatus, PageType, SourceKind
 
 
 class SpaceCreate(BaseModel):
@@ -71,6 +71,28 @@ class IndexEntry(BaseModel):
     updated_at: datetime
 
 
+class PageDetail(BaseModel):
+    """单页读取响应：Page 全字段 + evidence_dates（该页全部修订关联 source 的
+    occurred_at 日期，YYYY-MM-DD 去重升序）——联想工具拿到日期即可去翻对应日记。"""
+
+    id: int
+    space_id: int
+    type: PageType
+    slug: str
+    title: str
+    hook: str
+    happened_on: Optional[date] = None
+    summary: str
+    body: str
+    attrs: Optional[dict] = None
+    confidence: Optional[float] = None
+    status: PageStatus
+    schema_version: int
+    created_at: datetime
+    updated_at: datetime
+    evidence_dates: list[str]
+
+
 class RollbackRequest(BaseModel):
     seq: int
 
@@ -84,6 +106,8 @@ class RecallRequest(BaseModel):
     query: str = Field(min_length=1)
     method: Literal["fuzzy", "bm25", "llm"] = "bm25"
     max_pages: int = Field(default=3, ge=1, le=10)
+    # hook=轻量钩子行（渐进披露：先注钩子，相关再展开），full=全文（默认，兼容旧调用方）
+    detail: Literal["hook", "full"] = "full"
 
 
 class RecallHitOut(BaseModel):
@@ -96,9 +120,22 @@ class RecallHitOut(BaseModel):
     updated_at: datetime
 
 
+class RecallHookHitOut(BaseModel):
+    """detail="hook" 的轻量命中：只带钩子行所需字段，不含 body/summary。
+    hook_fallback=true 表示存量页 hook 为空，降级用了 summary 前 20 字。"""
+
+    slug: str
+    title: str
+    type: PageType
+    hook: str
+    happened_on: Optional[date] = None
+    score: Optional[float] = None
+    hook_fallback: bool = False
+
+
 class RecallResponse(BaseModel):
     method: str
-    hits: list[RecallHitOut]
+    hits: list[RecallHitOut] | list[RecallHookHitOut]
     context_block: str  # 直接注入 LLM 对话的 <recalled_memory> 文本块
     prompt_tokens: int = 0
     completion_tokens: int = 0
