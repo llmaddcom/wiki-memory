@@ -21,7 +21,7 @@ from .base import SCHEMA_VERSION, utcnow
 
 
 class SourceKind(str, Enum):
-    diary = "diary"            # 上游日记条目
+    diary = "diary"            # 上游日记条目（形态由上游定：当日汇总或逐回合实时转录皆可，本服务只当纯文本经历材料）
     turn = "turn"              # 对话回合（用户问 + AI 答）
     correction = "correction"  # 用户明确纠正 / "记住这个"
     skill_run = "skill_run"    # 工具/技能执行经历
