@@ -1,4 +1,4 @@
-"""wiki 页面路由：索引 / 全文 / 修订历史 / 出处链 / 回滚 / 软图谱。
+"""wiki 页面路由：索引 / 全文 / 按需展开 / 修订历史 / 出处链 / 回滚 / 软图谱。
 
 页面内容只读；唯一的写操作是回滚（拷历史版为新版，历史不丢）。
 """
@@ -19,6 +19,8 @@ from ...models import (
     Space,
     utcnow,
 )
+from ...recall import render_context_block
+from ...recall.base import RecallHit
 from ...repositories import evidence_repo, link_repo, page_repo, revision_repo
 from .. import schemas
 from ..deps import get_space, require_api_key
@@ -51,6 +53,46 @@ def list_pages(
     session: Session = Depends(get_session),
 ):
     return page_repo.list_pages(session, space.id, type=type, status=status)
+
+
+@router.post(
+    "/spaces/{space_uid}/pages/expand",
+    response_model=schemas.ExpandResponse,
+)
+def expand_pages(
+    payload: schemas.ExpandRequest,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
+):
+    """按 slug 批量展开 active 页全文，返回与 recall detail=full 同款可注入块。
+
+    不存在或已归档的 slug 进 missing，不整单 404（模型可能点了悬空链）。
+    """
+    hits: list[schemas.RecallHitOut] = []
+    recall_hits: list[RecallHit] = []
+    missing: list[str] = []
+    for slug in payload.slugs:
+        page = page_repo.get_by_slug(session, space.id, slug)
+        if page is None or page.status != PageStatus.active:
+            missing.append(slug)
+            continue
+        hits.append(
+            schemas.RecallHitOut(
+                slug=page.slug,
+                title=page.title,
+                type=page.type,
+                summary=page.summary,
+                score=None,
+                body=page.body,
+                updated_at=page.updated_at,
+            )
+        )
+        recall_hits.append(RecallHit(page=page))
+    return schemas.ExpandResponse(
+        hits=hits,
+        missing=missing,
+        context_block=render_context_block(recall_hits),
+    )
 
 
 @router.get("/spaces/{space_uid}/pages/{slug}", response_model=schemas.PageDetail)
