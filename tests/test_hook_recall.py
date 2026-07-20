@@ -164,6 +164,42 @@ def test_recall_default_full_unchanged(client, fake_llm):
     assert len(r_hook.content) < len(r_full.content)
 
 
+def test_expand_pages_order_and_context_block(client, fake_llm):
+    """批量展开：按请求顺序返回，context_block 含正文（与 recall full 同款）。"""
+    uid = _build_two_pages(client, fake_llm)
+
+    r = client.post(
+        f"/spaces/{uid}/pages/expand",
+        json={"slugs": ["report-habit", "coriander"]},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert [h["slug"] for h in body["hits"]] == ["report-habit", "coriander"]
+    assert body["missing"] == []
+    assert "日报按天写" in body["context_block"]
+    assert "小美讨厌香菜" in body["context_block"]
+    # 顺序：先 report-habit 再 coriander
+    assert body["context_block"].index("report-habit") < body["context_block"].index(
+        "coriander"
+    )
+
+
+def test_expand_pages_missing_and_archived(client, fake_llm):
+    """无效/归档 slug 进 missing；有效页仍展开。"""
+    uid = _build_two_pages(client, fake_llm)
+    assert client.post(f"/spaces/{uid}/pages/coriander/archive").status_code == 200
+
+    r = client.post(
+        f"/spaces/{uid}/pages/expand",
+        json={"slugs": ["coriander", "no-such-page", "report-habit"]},
+    )
+    body = r.json()
+    assert [h["slug"] for h in body["hits"]] == ["report-habit"]
+    assert body["missing"] == ["coriander", "no-such-page"]
+    assert "日报按天写" in body["context_block"]
+    assert "小美讨厌香菜" not in body["context_block"]
+
+
 def test_page_detail_evidence_dates(client, fake_llm):
     """单页响应附 evidence_dates：全部修订关联 source 的日期，去重升序。"""
     uid = _create_space(client, owner_id="u7", subject_id="r7")

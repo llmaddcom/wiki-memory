@@ -139,3 +139,17 @@ class RecallResponse(BaseModel):
     context_block: str  # 直接注入 LLM 对话的 <recalled_memory> 文本块
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+
+class ExpandRequest(BaseModel):
+    """按 slug 批量展开页面全文（渐进披露第二步）。"""
+
+    slugs: list[str] = Field(min_length=1, max_length=10)
+
+
+class ExpandResponse(BaseModel):
+    """展开结果：命中页与 recall detail=full 同款可注入块；缺失/归档进 missing。"""
+
+    hits: list[RecallHitOut]
+    missing: list[str]
+    context_block: str
