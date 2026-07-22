@@ -50,6 +50,10 @@ class Page(SQLModel, table=True):
     attrs: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     confidence: Optional[float] = Field(default=None)  # belief 类使用
     status: PageStatus = Field(default=PageStatus.active, index=True)
+    # usage 第一方观测数据（非派生物）：REDACT 重写、回滚、重派生都必须保留，
+    # 只在召回命中 / 联想展开（?track=associate）时增量累加，绝不整列覆盖。
+    hit_count: int = Field(default=0)
+    last_hit_at: Optional[datetime] = None
     schema_version: int = Field(default=SCHEMA_VERSION)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

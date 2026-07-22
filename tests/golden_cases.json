@@ -1,0 +1,88 @@
+{
+  "_readme": "固化质量 golden set（真端点档，WIKIMEM_GOLDEN=1 手动跑）。每组：sources 喂给固化引擎，expect 断言产出操作。must_mention_any：至少一个专名/短语须出现在任一操作的 hook/summary/body（反泛化）；forbid_patterns：任何操作字段不得出现（相对时间词/空话/转录腔）；min_ops/max_ops：操作数窗口（0,0=期望遗忘）。",
+  "cases": [
+    {
+      "name": "correction-称呼纠正",
+      "sources": [{"kind": "correction", "content": "别再叫我张先生了，叫我老张", "occurred_at": "2026-07-10T10:00:00", "salience": 0.9}],
+      "expect": {"must_mention_any": ["老张"], "forbid_patterns": ["用户说", "用户表示"], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "smalltalk-寒暄遗忘",
+      "sources": [{"kind": "turn", "content": "用户：早上好呀\nAI：早上好！今天也要加油哦", "occurred_at": "2026-07-10T09:00:00", "salience": 0.1}],
+      "expect": {"must_mention_any": [], "forbid_patterns": [], "min_ops": 0, "max_ops": 0}
+    },
+    {
+      "name": "temporal-相对时间锚定",
+      "sources": [{"kind": "turn", "content": "用户：我昨天把工作辞了，下个月去大理住一阵子\nAI：辞职是大事，恭喜你迈出这一步", "occurred_at": "2026-07-10T20:00:00", "salience": 0.6}],
+      "expect": {"must_mention_any": ["2026-07-09", "7月9日", "07-09"], "forbid_patterns": ["昨天", "下个月"], "min_ops": 1, "max_ops": 3}
+    },
+    {
+      "name": "antigeneralization-书名保留",
+      "sources": [{"kind": "turn", "content": "用户：最近在读《置身事内》，讲中国政府与经济的，特别好\nAI：这本书口碑很好", "occurred_at": "2026-07-10T21:00:00", "salience": 0.4}],
+      "expect": {"must_mention_any": ["置身事内"], "forbid_patterns": ["一本书", "某本书"], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "qualifier-限定词不降级",
+      "sources": [{"kind": "turn", "content": "用户：跟你说个事，我升副经理了，管我们组五个人\nAI：恭喜！", "occurred_at": "2026-07-11T10:00:00", "salience": 0.5}],
+      "expect": {"must_mention_any": ["副经理"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "statechange-换工具带前态",
+      "sources": [{"kind": "turn", "content": "用户：我不用 Vim 了，团队统一换 VSCode，以后代码相关都按 VSCode 说\nAI：好的", "occurred_at": "2026-07-11T14:00:00", "salience": 0.5}],
+      "expect": {"must_mention_any": ["Vim"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "temporary-明示临时性",
+      "sources": [{"kind": "turn", "content": "用户：这个月我先住酒店，房子还在装修\nAI：装修辛苦", "occurred_at": "2026-07-11T19:00:00", "salience": 0.4}],
+      "expect": {"must_mention_any": ["装修"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "meta-不抽分享动作",
+      "sources": [{"kind": "turn", "content": "用户：说个我老家的事，我老家在成都，家里还种着猕猴桃\nAI：成都好地方", "occurred_at": "2026-07-12T10:00:00", "salience": 0.4}],
+      "expect": {"must_mention_any": ["成都"], "forbid_patterns": ["提到了", "分享了", "询问了"], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "lesson-失败教训",
+      "sources": [{"kind": "skill_run", "content": "任务：给用户发日报。工具：邮件。结果：失败（把日报排成了周报格式，用户不满）。输出摘要：用户明确说日报要按天维度。", "occurred_at": "2026-07-12T18:00:00", "salience": 0.7}],
+      "expect": {"must_mention_any": ["日报"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "person-禁忌画像",
+      "sources": [{"kind": "turn", "content": "用户：提醒一下，以后帮我点餐别点香菜，我完全吃不了\nAI：记住了", "occurred_at": "2026-07-13T12:00:00", "salience": 0.6}],
+      "expect": {"must_mention_any": ["香菜"], "forbid_patterns": ["用户说"], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "numbers-数量型号保留",
+      "sources": [{"kind": "turn", "content": "用户：新电脑到了，MacBook Pro M4 Max，64G 内存，2T 硬盘\nAI：顶配啊", "occurred_at": "2026-07-13T15:00:00", "salience": 0.4}],
+      "expect": {"must_mention_any": ["M4", "64G", "64GB"], "forbid_patterns": ["一台电脑"], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "festival-节日相对锚定",
+      "sources": [{"kind": "turn", "content": "用户：3 号我要去北京出差一周，帮我记着\nAI：好，出差顺利", "occurred_at": "2026-07-14T09:00:00", "salience": 0.6}],
+      "expect": {"must_mention_any": ["2026-07-03", "2026-08-03", "北京"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "multitopic-中段不漏",
+      "sources": [{"kind": "turn", "content": "用户：今天三件事：一是项目 Argo 立项通过了；二是我妹妹小雨下周来广州住我这，帮我记得推荐吃的；三是我把咖啡戒了，改喝茶\nAI：都记下了", "occurred_at": "2026-07-14T20:00:00", "salience": 0.6}],
+      "expect": {"must_mention_any": ["小雨"], "forbid_patterns": [], "min_ops": 2, "max_ops": 5}
+    },
+    {
+      "name": "procedure-经验沉淀",
+      "sources": [{"kind": "turn", "content": "用户：以后写周报按这个格式：先写结论，再列数据，最后风险，别超过一页\nAI：明白", "occurred_at": "2026-07-15T10:00:00", "salience": 0.6}],
+      "expect": {"must_mention_any": ["周报"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    },
+    {
+      "name": "conflict-矛盾显式",
+      "sources": [
+        {"kind": "turn", "content": "用户：我最喜欢的城市是杭州\nAI：西湖很美", "occurred_at": "2026-07-15T11:00:00", "salience": 0.4},
+        {"kind": "turn", "content": "用户：收回之前的话，住过半年后最喜欢的城市变成青岛了，因为海\nAI：海边确实舒服", "occurred_at": "2026-07-16T11:00:00", "salience": 0.5}
+      ],
+      "expect": {"must_mention_any": ["青岛"], "forbid_patterns": [], "min_ops": 1, "max_ops": 3}
+    },
+    {
+      "name": "selfstate-数字人自我",
+      "sources": [{"kind": "turn", "content": "用户：你最近回答太啰嗦了，以后跟我说话简短点，直接给结论\nAI：好，以后简短直接", "occurred_at": "2026-07-16T15:00:00", "salience": 0.7}],
+      "expect": {"must_mention_any": ["简短"], "forbid_patterns": [], "min_ops": 1, "max_ops": 2}
+    }
+  ]
+}

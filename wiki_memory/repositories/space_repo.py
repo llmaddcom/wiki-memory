@@ -55,7 +55,10 @@ def delete_space(session: Session, space: Space) -> dict:
     这是记忆的"死亡"，不是遗忘——遗忘走固化的 archive；此操作不可恢复。
     """
     from ..models import ConsolidationRun, Evidence, Page, PageLink, PageRevision, Source
+    from . import embedding_repo, keyword_repo
 
+    keyword_repo.clear_for_space(session, space.id)
+    embedding_repo.clear_for_space(session, space.id)
     pages = session.exec(select(Page).where(Page.space_id == space.id)).all()
     page_ids = [p.id for p in pages]
     revs = (

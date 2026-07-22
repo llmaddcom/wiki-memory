@@ -127,7 +127,10 @@ def test_recall_detail_hook(client, fake_llm):
     hits = {h["slug"]: h for h in body["hits"]}
     assert set(hits) == {"coriander", "report-habit"}
     for h in body["hits"]:
-        assert set(h) == {"slug", "title", "type", "hook", "happened_on", "score", "hook_fallback"}
+        assert set(h) == {
+            "slug", "title", "type", "hook", "happened_on", "score",
+            "score_details", "provisional", "hook_fallback",
+        }
 
     a = hits["coriander"]
     assert a["hook"] == "她讨厌香菜" and a["happened_on"] == "2026-07-01"
@@ -154,7 +157,10 @@ def test_recall_default_full_unchanged(client, fake_llm):
 
     r_full = client.post(f"/spaces/{uid}/recall", json={"query": "香菜 日报", "method": "bm25"})
     for h in r_full.json()["hits"]:
-        assert set(h) == {"slug", "title", "type", "summary", "score", "body", "updated_at"}
+        assert set(h) == {
+            "slug", "title", "type", "summary", "score",
+            "score_details", "provisional", "body", "updated_at",
+        }
     assert "## 禁忌" in r_full.json()["context_block"]
 
     r_hook = client.post(

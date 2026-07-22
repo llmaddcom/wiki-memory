@@ -15,9 +15,10 @@ def render_context_block(hits: list[RecallHit]) -> str:
     parts = ["<recalled_memory>"]
     for h in hits:
         p = h.page
+        provisional = ' provisional="true"' if h.provisional else ""
         parts.append(
             f'<memory type="{p.type.value}" slug="{p.slug}" title="{p.title}" '
-            f'updated_at="{p.updated_at:%Y-%m-%d}">\n{p.body}\n</memory>'
+            f'updated_at="{p.updated_at:%Y-%m-%d}"{provisional}>\n{p.body}\n</memory>'
         )
     parts.append("</recalled_memory>")
     return "\n".join(parts)
@@ -41,6 +42,10 @@ def render_hook_block(hits: list[RecallHit]) -> str:
         p = h.page
         hook, _ = resolve_hook(p)
         when = f"（{p.happened_on:%Y-%m-%d}）" if p.happened_on else ""
-        parts.append(f"- [[{p.slug}]] {hook}{when}")
+        # provisional：未固化的临时命中，无展开页可点名（slug 不带 [[]] 语法）。
+        if h.provisional:
+            parts.append(f"- {hook}{when}（待固化）")
+        else:
+            parts.append(f"- [[{p.slug}]] {hook}{when}")
     parts.append("</recalled_memory>")
     return "\n".join(parts)

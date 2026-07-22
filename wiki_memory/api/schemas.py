@@ -87,6 +87,8 @@ class PageDetail(BaseModel):
     attrs: Optional[dict] = None
     confidence: Optional[float] = None
     status: PageStatus
+    hit_count: int = 0
+    last_hit_at: Optional[datetime] = None
     schema_version: int
     created_at: datetime
     updated_at: datetime
@@ -104,7 +106,7 @@ class ConsolidateRequest(BaseModel):
 
 class RecallRequest(BaseModel):
     query: str = Field(min_length=1)
-    method: Literal["fuzzy", "bm25", "llm"] = "bm25"
+    method: Literal["fuzzy", "bm25", "llm", "embedding"] = "bm25"
     max_pages: int = Field(default=3, ge=1, le=10)
     # hook=轻量钩子行（渐进披露：先注钩子，相关再展开），full=全文（默认，兼容旧调用方）
     detail: Literal["hook", "full"] = "full"
@@ -116,6 +118,10 @@ class RecallHitOut(BaseModel):
     type: PageType
     summary: str
     score: Optional[float] = None
+    # 逐信号计分拆解（可解释可审计）：bm25_raw/bm25_norm/keyword_boost/final 等；
+    # llm 策略无数值分为 None。provisional=true 是高 salience 待固化材料的临时命中。
+    score_details: Optional[dict] = None
+    provisional: bool = False
     body: str
     updated_at: datetime
 
@@ -130,6 +136,8 @@ class RecallHookHitOut(BaseModel):
     hook: str
     happened_on: Optional[date] = None
     score: Optional[float] = None
+    score_details: Optional[dict] = None
+    provisional: bool = False
     hook_fallback: bool = False
 
 

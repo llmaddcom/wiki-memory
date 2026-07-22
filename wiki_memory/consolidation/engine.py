@@ -14,7 +14,7 @@ import re
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..linking import extract_link_slugs, slugify
@@ -31,7 +31,9 @@ from ..models import (
     utcnow,
 )
 from ..repositories import (
+    embedding_repo,
     evidence_repo,
+    keyword_repo,
     link_repo,
     page_repo,
     revision_repo,
@@ -39,6 +41,10 @@ from ..repositories import (
     source_repo,
 )
 from . import prompts
+
+# 近似页保守检测阈值：slug 未命中但 title+hook+summary 词袋 Jaccard 超过此值时，
+# 不改判操作（有损裁决禁入热路径），只在 attrs 标 possible_duplicate 让劣化可见。
+_DUPLICATE_JACCARD_THRESHOLD = 0.5
 
 
 def parse_json_object(text: str) -> dict:
@@ -67,10 +73,13 @@ class PageOp(BaseModel):
     type: PageType = PageType.belief
     slug: str
     title: str = ""
-    hook: str = ""  # ≤20 字关键点（语义校验在代码：超长截断）
+    # 长度约束进 schema（vLLM json_schema 约束解码在生成侧压住超长）；
+    # 语义校验仍在代码：降级纯文本路径下超长照常截断，不丢弃整个操作。
+    hook: str = Field(default="", max_length=20)  # ≤20 字关键点
     happened_on: Optional[str] = None  # YYYY-MM-DD，无则 null（非法置空）
-    summary: str = ""
+    summary: str = Field(default="", max_length=300)
     body: str = ""
+    keywords: list[str] = Field(default_factory=list, max_length=8)  # 检索关键字（倒排通道）
     confidence: Optional[float] = None
     change_reason: str = ""
     source_ids: list[int] = []
@@ -84,12 +93,50 @@ class SelectPlan(BaseModel):
     read: list[str]
 
 
+class RedactPlan(BaseModel):
+    """REDACT 重固化的输出契约：正文之外必须连 hook/happened_on 一起重写，
+    否则钩子行会与新正文脱节（既有缺口的修复）。"""
+
+    title: str = ""
+    hook: str = Field(default="", max_length=20)
+    happened_on: Optional[str] = None
+    summary: str = Field(default="", max_length=300)
+    body: str = ""
+    confidence: Optional[float] = None
+
+
 def _json_schema_format(name: str, model: type[BaseModel]) -> dict:
     """OpenAI 兼容 response_format：约束解码按 schema 出 JSON（vLLM json_schema）。"""
     return {
         "type": "json_schema",
         "json_schema": {"name": name, "schema": model.model_json_schema()},
     }
+
+
+def _dedupe_bag(page: Page) -> set[str]:
+    """近似检测的词袋：title+hook+summary（正文太长噪声大，检索面字段足够判同题）。"""
+    # 函数内导入：recall 包 __init__ 里的 llm 策略反向依赖本模块，顶层导入成环。
+    from ..recall.tokenize import tokenize
+
+    return set(tokenize(f"{page.title} {page.hook} {page.summary}"))
+
+
+def _find_similar_slugs(candidate: Page, active_pages: list[Page]) -> list[str]:
+    """slug 未命中的新建页 vs 既有 active 页的 Jaccard 相似度，超阈值的 slug 列表。"""
+    bag = _dedupe_bag(candidate)
+    if not bag:
+        return []
+    similar: list[str] = []
+    for other in active_pages:
+        if other.slug == candidate.slug:
+            continue
+        other_bag = _dedupe_bag(other)
+        if not other_bag:
+            continue
+        jaccard = len(bag & other_bag) / len(bag | other_bag)
+        if jaccard >= _DUPLICATE_JACCARD_THRESHOLD:
+            similar.append(other.slug)
+    return similar
 
 
 def _parse_happened_on(value) -> date | None:
@@ -229,6 +276,11 @@ class ConsolidationEngine:
                 body=body,
                 confidence=confidence,
             )
+            # 近似页保守防线：slug 未命中但与既有 active 页高度相似时不改判
+            # （有损裁决禁入热路径），落库并在 attrs 标记，让固化劣化可见可审计。
+            similar = _find_similar_slugs(page, page_repo.list_active(session, space.id))
+            if similar:
+                page.attrs = {**(page.attrs or {}), "possible_duplicate": similar}
             session.add(page)
             session.flush()
             reason = reason or "建页"
@@ -243,7 +295,12 @@ class ConsolidationEngine:
             page.status = PageStatus.active
             page.updated_at = utcnow()
             reason = reason or "更新"
+            # 内容已改写：旧向量失效（惰性重算），关键字整替如下。
+            embedding_repo.invalidate_for_page(session, page.id)
 
+        keyword_repo.refresh_for_page(
+            session, space.id, page.id, keyword_repo.normalize_terms(op.get("keywords") or [])
+        )
         self._record(session, page, run, reason, source_ids)
         link_repo.refresh_for_page(session, space.id, page, extract_link_slugs(page.body))
         return slug

@@ -22,7 +22,12 @@ from dataclasses import dataclass, field
 from sqlmodel import Session, select
 
 from .consolidation import prompts
-from .consolidation.engine import parse_json_object
+from .consolidation.engine import (
+    RedactPlan,
+    _json_schema_format,
+    _parse_happened_on,
+    parse_json_object,
+)
 from .linking import extract_link_slugs
 from .llm.base import ChatLLM, LLMError
 from .models import (
@@ -37,7 +42,14 @@ from .models import (
     Space,
     utcnow,
 )
-from .repositories import evidence_repo, link_repo, revision_repo, run_repo
+from .repositories import (
+    embedding_repo,
+    evidence_repo,
+    keyword_repo,
+    link_repo,
+    revision_repo,
+    run_repo,
+)
 
 
 class RedactionError(Exception):
@@ -154,6 +166,7 @@ def _redact_all(
             prompts.REDACT_SYSTEM,
             f"## 页面当前全文\n{prompts.render_pages_full([page])}\n\n"
             f"## 剩余证据材料\n{prompts.render_sources(remaining)}",
+            response_format=_json_schema_format("redact_plan", RedactPlan),
         )
         run.prompt_tokens += res.prompt_tokens
         run.completion_tokens += res.completion_tokens
@@ -193,17 +206,26 @@ def _apply(
         ).all():
             link.to_page_id = None
             session.add(link)
+        keyword_repo.clear_for_page(session, page.id)
+        embedding_repo.invalidate_for_page(session, page.id)
         session.delete(page)
 
-    # 3. 仍有其余证据的页面：用重写结果落新修订，出处指回剩余 source
+    # 3. 仍有其余证据的页面：用重写结果落新修订，出处指回剩余 source。
+    #    hook/happened_on 一并按重写落库（钩子不能与新正文脱节）；关键字与向量
+    #    清除（出处可能已被删，交由下次固化/召回重派生）；usage（hit_count 等）
+    #    是第一方观测数据，重写绝不清零。
     for page in impact.pages_to_reconsolidate:
         rewrite = rewrites[page.id]
         page.title = rewrite.get("title") or page.title
+        page.hook = (rewrite.get("hook") or "").strip()[:20] or page.hook
+        page.happened_on = _parse_happened_on(rewrite.get("happened_on"))
         page.summary = rewrite.get("summary") or page.summary
         page.body = rewrite["body"]
         if rewrite.get("confidence") is not None:
             page.confidence = rewrite["confidence"]
         page.updated_at = utcnow()
+        keyword_repo.clear_for_page(session, page.id)
+        embedding_repo.invalidate_for_page(session, page.id)
         rev = revision_repo.add(
             session,
             page,

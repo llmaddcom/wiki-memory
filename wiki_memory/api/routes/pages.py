@@ -19,7 +19,13 @@ from ...models import (
     Space,
     utcnow,
 )
-from ...repositories import evidence_repo, link_repo, page_repo, revision_repo
+from ...repositories import (
+    embedding_repo,
+    evidence_repo,
+    link_repo,
+    page_repo,
+    revision_repo,
+)
 from .. import schemas
 from ..deps import get_space, require_api_key
 
@@ -55,9 +61,20 @@ def list_pages(
 
 @router.get("/spaces/{space_uid}/pages/{slug}", response_model=schemas.PageDetail)
 def read_page(
-    slug: str, space: Space = Depends(get_space), session: Session = Depends(get_session)
+    slug: str,
+    track: Optional[str] = None,
+    space: Space = Depends(get_space),
+    session: Session = Depends(get_session),
 ):
     page = _get_page_or_404(session, space, slug)
+    # usage 记账通道：?track=associate（联想展开=模型主动取用，最强使用信号）。
+    # /ui 预览与普通审计读取不带参、不计数；UPDATE 增量累加，绝不整列覆盖。
+    if track == "associate":
+        page.hit_count += 1
+        page.last_hit_at = utcnow()
+        session.add(page)
+        session.commit()
+        session.refresh(page)
     # 全部修订关联 source 的发生日期，去重升序——联想工具据此翻对应日记
     dates = sorted(
         {f"{e['source_occurred_at']:%Y-%m-%d}" for e in evidence_repo.list_for_page(session, page.id)}
@@ -99,6 +116,8 @@ def rollback_page(
     page.body = target.body
     page.status = PageStatus.active
     page.updated_at = utcnow()
+    # 内容已改写：向量失效（惰性重算）；usage（hit_count 等）是观测数据，保留。
+    embedding_repo.invalidate_for_page(session, page.id)
     revision_repo.add(
         session, page, f"回滚到第 {payload.seq} 版", RevisionTrigger.rollback
     )

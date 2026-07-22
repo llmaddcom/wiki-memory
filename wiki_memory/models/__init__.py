@@ -8,7 +8,9 @@ space（隔离边界）→ source（不可变经历）→ consolidationrun（睡
 from .base import SCHEMA_VERSION, utcnow
 from .consolidation_run import ConsolidationRun, RunStatus
 from .evidence import Evidence
+from .keyword import Keyword, PageKeyword
 from .page import Page, PageStatus, PageType
+from .page_embedding import PageEmbedding
 from .page_link import PageLink
 from .page_revision import PageRevision, RevisionTrigger
 from .source import Source, SourceKind, SourceStatus
@@ -29,6 +31,9 @@ __all__ = [
     "RevisionTrigger",
     "Evidence",
     "PageLink",
+    "Keyword",
+    "PageKeyword",
+    "PageEmbedding",
     "ConsolidationRun",
     "RunStatus",
 ]

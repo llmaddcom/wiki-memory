@@ -10,9 +10,10 @@ from sqlmodel import Session
 from ..config import settings
 from ..consolidation.engine import ConsolidationEngine
 from ..db import get_session
+from ..embedding import OpenAICompatEmbedder
 from ..llm import ChatLLM, OpenAICompatLLM
 from ..models import Space
-from ..recall import Bm25Recall, FuzzyRecall, LlmRecall, RecallStrategy
+from ..recall import Bm25Recall, EmbeddingRecall, FuzzyRecall, LlmRecall, RecallStrategy
 from ..repositories import space_repo
 
 
@@ -41,11 +42,35 @@ def get_space(space_uid: str, session: Session = Depends(get_session)) -> Space:
     return space
 
 
-def build_recall_strategy(method: str, llm: ChatLLM) -> RecallStrategy:
+def get_embedder() -> OpenAICompatEmbedder | None:
+    """embedder 装配：api_base 留空 = 语义召回通道关闭（返回 None）。"""
+    if not settings.embedder_api_base:
+        return None
+    return OpenAICompatEmbedder(
+        api_base=settings.embedder_api_base,
+        api_key=settings.embedder_api_key,
+        model=settings.embedder_model,
+        timeout=settings.embedder_timeout_seconds,
+    )
+
+
+def build_recall_strategy(
+    method: str,
+    llm: ChatLLM,
+    session: Session,
+    embedder: OpenAICompatEmbedder | None = None,
+) -> RecallStrategy:
     if method == "fuzzy":
         return FuzzyRecall()
     if method == "bm25":
         return Bm25Recall()
     if method == "llm":
         return LlmRecall(llm)
+    if method == "embedding":
+        if embedder is None:
+            raise HTTPException(
+                status_code=422,
+                detail="embedding recall 未启用：需配置 WIKIMEM_EMBEDDER_API_BASE",
+            )
+        return EmbeddingRecall(embedder, session)
     raise HTTPException(status_code=422, detail=f"unknown recall method: {method}")
