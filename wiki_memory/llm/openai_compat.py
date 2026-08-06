@@ -34,11 +34,14 @@ class OpenAICompatLLM:
 
     def _request(self, payload: dict) -> ChatResult:
         try:
+            # trust_env=False：连通性只由 base_url 决定，不吃部署机 HTTP(S)_PROXY
+            # 环境变量（httpx 不认 no_proxy 的 CIDR 写法，内网/本机目标会被误推给代理）。
             resp = httpx.post(
                 f"{self._base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self._api_key}"},
                 json=payload,
                 timeout=self._timeout,
+                trust_env=False,
             )
             resp.raise_for_status()
             data = resp.json()
