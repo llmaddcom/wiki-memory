@@ -77,9 +77,24 @@ tests/               FakeLLM 端到端（不需要真实 LLM）
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cp .env.example .env   # 配 WIKIMEM_LLM_BASE_URL / MODEL；换 Postgres 改 WIKIMEM_DATABASE_URL
 .venv/bin/uvicorn wiki_memory.main:app --port 8020
+# 或 scripts/run.sh（同上，读 .env，端口用 PORT=xxxx 覆盖），便于 systemd 套壳
 # 浏览器打开 http://127.0.0.1:8020/ui 预览记忆；/docs 看 OpenAPI
 .venv/bin/python -m pytest   # 测试（FakeLLM，不需要真实 LLM）
 ```
+
+### 存量库手工 SQL 迁移
+
+项目无迁移框架：启动时 `create_all` 只建缺失的**表**，不会给已有表加列。
+**全新部署（首次启动建库）什么都不用跑**；只有带着旧数据升级代码的存量库，
+才需要按引擎手工执行 `scripts/` 下对应 SQL（每个脚本头部有用法与幂等性说明）：
+
+| 脚本 | 何时需要 | 内容 |
+|---|---|---|
+| `add_hook_happened_on.{sqlite,postgres}.sql` | 存量库建于 hook/happened_on 功能（issue #6）之前 | `page` / `pagerevision` 加 `hook`、`happened_on` 两列 |
+| `add_usage_columns.{sqlite,postgres}.sql` | 存量库建于 usage 命中记录（记忆优化 P0-3）之前 | `page` 加 `hit_count`、`last_hit_at` 两列（同批的 keyword/pagekeyword/pageembedding 新表由 create_all 自建，无需 SQL） |
+
+Postgres 版用 `IF NOT EXISTS` 幂等可重复执行；SQLite 版重复执行会报
+`duplicate column name`，可安全忽略（说明已迁移过）。拿不准就都跑一遍。
 
 ## API 速览
 

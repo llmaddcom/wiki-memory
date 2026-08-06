@@ -220,7 +220,7 @@ def test_response_format_passthrough_and_fallback(monkeypatch):
     """端点拒绝 response_format（如不支持 json_schema 的中转）时重试一次纯文本模式。"""
     calls: list[dict] = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, trust_env=None):
         calls.append(json)
         if "response_format" in json:
             return httpx.Response(
@@ -242,7 +242,7 @@ def test_response_format_supported_single_request(monkeypatch):
     """端点支持时只发一次请求；不传 response_format 的调用不带该字段。"""
     calls: list[dict] = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, trust_env=None):
         calls.append(json)
         return _ok_response(url)
 
@@ -258,7 +258,7 @@ def test_response_format_both_attempts_fail(monkeypatch):
     """带与不带 response_format 都失败 → 抛 LLMError（共尝试两次）。"""
     calls: list[dict] = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, trust_env=None):
         calls.append(json)
         return httpx.Response(500, request=httpx.Request("POST", url), json={})
 
