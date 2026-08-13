@@ -21,6 +21,15 @@ def test_consolidate_system_has_disciplines():
     assert "keywords" in s and "泛化词" in s
 
 
+def test_consolidate_system_hook_discipline():
+    """issue #13：hook 是单行中文「何时用我」句，禁关键词化/夹英文，≤30 字先改写不硬截。"""
+    s = prompts.CONSOLIDATE_SYSTEM
+    assert "何时用我" in s and "单行完整中文句" in s
+    assert "不得夹英文" in s and "不进钩子文案" in s
+    assert "30 字" in s and "不要硬截" in s
+    assert "关键词堆砌" in s
+
+
 def test_select_system_requires_similar_pages():
     assert "同一主题" in prompts.CONSOLIDATE_SELECT_SYSTEM
 
@@ -28,13 +37,14 @@ def test_select_system_requires_similar_pages():
 def test_redact_system_covers_hook_and_date():
     s = prompts.REDACT_SYSTEM
     assert "hook" in s and "happened_on" in s
+    assert "何时用我" in s  # 重固化侧同一套钩子句口径
 
 
 def test_pageop_schema_constraints():
     """长度/条数约束进 json schema（vLLM 约束解码在生成侧压住）。"""
     schema = WritePlan.model_json_schema()
     op = schema["$defs"]["PageOp"]["properties"]
-    assert op["hook"]["maxLength"] == 20
+    assert op["hook"]["maxLength"] == 30
     assert op["summary"]["maxLength"] == 300
     assert op["keywords"]["maxItems"] == 8
 
@@ -42,7 +52,7 @@ def test_pageop_schema_constraints():
 def test_redact_schema_constraints():
     props = RedactPlan.model_json_schema()["properties"]
     assert {"title", "hook", "happened_on", "summary", "body", "confidence"} <= set(props)
-    assert props["hook"]["maxLength"] == 20
+    assert props["hook"]["maxLength"] == 30
 
 
 def test_pageop_defaults_tolerant():

@@ -17,13 +17,13 @@ def _create_space(client, **kw):
 
 
 def test_hook_happened_on_persist_and_validate(client, fake_llm):
-    """hook 超 20 字截断、happened_on 非法置空（操作不丢弃）；修订快照与回滚同步三元字段。"""
+    """hook 超 30 字截断、happened_on 非法置空（操作不丢弃）；修订快照与回滚同步三元字段。"""
     uid = _create_space(client)
     src = client.post(
         f"/spaces/{uid}/sources", json={"kind": "manual", "content": "材料一"}
     ).json()["id"]
 
-    long_hook = "钩" * 25
+    long_hook = "钩" * 35
     fake_llm.responses = [
         json.dumps(
             {
@@ -49,7 +49,7 @@ def test_hook_happened_on_persist_and_validate(client, fake_llm):
     assert fake_llm.response_formats[0]["type"] == "json_schema"
 
     page = client.get(f"/spaces/{uid}/pages/long-hook").json()
-    assert page["hook"] == "钩" * 20  # 超 20 字截断
+    assert page["hook"] == "钩" * 30  # 超 30 字截断
     assert page["happened_on"] == "2026-07-01"
     page2 = client.get(f"/spaces/{uid}/pages/bad-date").json()
     assert page2["hook"] == "正常钩子"
@@ -57,7 +57,7 @@ def test_hook_happened_on_persist_and_validate(client, fake_llm):
 
     # 修订快照同步含三元字段
     revs = client.get(f"/spaces/{uid}/pages/long-hook/revisions").json()
-    assert revs[0]["hook"] == "钩" * 20 and revs[0]["happened_on"] == "2026-07-01"
+    assert revs[0]["hook"] == "钩" * 30 and revs[0]["happened_on"] == "2026-07-01"
 
     # 二次固化（wiki 非空）：select 与 write 阶段都带各自 schema
     src2 = client.post(
@@ -84,7 +84,7 @@ def test_hook_happened_on_persist_and_validate(client, fake_llm):
 
     # 回滚还原三元字段（快照的意义）
     r = client.post(f"/spaces/{uid}/pages/long-hook/rollback", json={"seq": 1})
-    assert r.json()["hook"] == "钩" * 20 and r.json()["happened_on"] == "2026-07-01"
+    assert r.json()["hook"] == "钩" * 30 and r.json()["happened_on"] == "2026-07-01"
 
 
 _SUMMARY_B = "日报要按天维度输出，别用周报格式凑数，周五另交周总结"

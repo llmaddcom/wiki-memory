@@ -217,7 +217,7 @@ def _apply(
     for page in impact.pages_to_reconsolidate:
         rewrite = rewrites[page.id]
         page.title = rewrite.get("title") or page.title
-        page.hook = (rewrite.get("hook") or "").strip()[:20] or page.hook
+        page.hook = (rewrite.get("hook") or "").strip()[:30] or page.hook
         page.happened_on = _parse_happened_on(rewrite.get("happened_on"))
         page.summary = rewrite.get("summary") or page.summary
         page.body = rewrite["body"]

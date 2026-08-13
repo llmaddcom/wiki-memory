@@ -75,7 +75,7 @@ class PageOp(BaseModel):
     title: str = ""
     # 长度约束进 schema（vLLM json_schema 约束解码在生成侧压住超长）；
     # 语义校验仍在代码：降级纯文本路径下超长照常截断，不丢弃整个操作。
-    hook: str = Field(default="", max_length=20)  # ≤20 字关键点
+    hook: str = Field(default="", max_length=30)  # ≤30 字的单行中文「何时用我」句
     happened_on: Optional[str] = None  # YYYY-MM-DD，无则 null（非法置空）
     summary: str = Field(default="", max_length=300)
     body: str = ""
@@ -98,7 +98,7 @@ class RedactPlan(BaseModel):
     否则钩子行会与新正文脱节（既有缺口的修复）。"""
 
     title: str = ""
-    hook: str = Field(default="", max_length=20)
+    hook: str = Field(default="", max_length=30)
     happened_on: Optional[str] = None
     summary: str = Field(default="", max_length=300)
     body: str = ""
@@ -258,7 +258,8 @@ class ConsolidationEngine:
 
         title = op.get("title") or slug
         # 语义校验在代码不在 schema：坏字段修剪后照常落库，不丢弃整个操作
-        hook = (op.get("hook") or "").strip()[:20]
+        hook = (op.get("hook") or "").strip()
+        hook = hook.splitlines()[0].strip()[:30] if hook else ""  # 单行 ≤30 字（多行/超长兜底修剪）
         happened_on = _parse_happened_on(op.get("happened_on"))
         summary = op.get("summary") or ""
         body = op.get("body") or ""

@@ -5,7 +5,8 @@
     WIKIMEM_GOLDEN=1 .venv/bin/python -m pytest tests/test_golden_real_llm.py -v -s
 
 用 .env 配置的真实 LLM 端点逐组跑固化，断言产出操作满足抽取纪律：
-hook ≤20 字非空话、无相对时间词、专名保留、遗忘用例产零操作。
+hook ≤30 字单行中文「何时用我」句（非空话/非关键词化/不夹 slug）、
+无相对时间词、专名保留、遗忘用例产零操作。
 CI 档（FakeLLM）只校验 prompt 组装与 schema 约束，见 test_prompt_disciplines.py。
 """
 
@@ -92,5 +93,10 @@ def test_golden_case(case, db_session):
         assert pattern not in corpus, f"禁令词出现：{pattern!r}\n{corpus}"
     for p in pages:
         assert p.hook.strip(), f"页 {p.slug} hook 为空"
-        assert len(p.hook) <= 20
+        assert len(p.hook) <= 30
         assert not _HOOK_BANNED.search(p.hook), f"hook 空话：{p.hook!r}"
+        # issue #13：单行中文句，slug/type 标识不得漏进钩子文案
+        assert "\n" not in p.hook, f"hook 多行：{p.hook!r}"
+        assert re.search(r"[一-鿿]", p.hook), f"hook 无中文：{p.hook!r}"
+        assert p.slug not in p.hook, f"hook 夹 slug：{p.hook!r}"
+        assert p.type.value not in p.hook, f"hook 夹 type 标识：{p.hook!r}"
