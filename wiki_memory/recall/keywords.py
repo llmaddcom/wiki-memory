@@ -4,22 +4,18 @@
 并在归一分之上加 boost，绝不做路由门——否则低信号页会被系统性隐藏。
 
 降权公式（mem0 移植版，系数按单角色库几百页规模重标定）：
-    boost = match_quality × 0.5 × 1/(1 + 0.01·(n_pages−1)²)
-n_pages 为该关键字指向的 active 页面数；0.01 的半衰点在 n≈11，指向 30+ 页的
-万能词近乎无效。工程口径照搬：query 侧关键字去重封顶 8 个、同页多关键字
-命中取 max 不累加、整体计算失败静默降级（召回退化为纯 BM25，不报错）。
+    boost = match_quality × scale × 1/(1 + c·(n_pages−1)²)
+n_pages 为该关键字指向的 active 页面数；默认 scale=0.5、c=0.01（半衰点在 n≈11，
+指向 30+ 页的万能词近乎无效）。工程口径照搬：query 侧关键字去重封顶 8 个、同页
+多关键字命中取 max 不累加、整体计算失败静默降级（召回退化为纯 BM25，不报错）。
+
+三个系数都是系统键（config/system.yaml 的 recall.keyword_*），不再散落为模块常量。
 """
 
 from sqlmodel import Session, select
 
+from ..config import system
 from ..models import Keyword, Page, PageKeyword, PageStatus
-
-# query 侧参与匹配的关键字上限（去重后）。
-_MAX_QUERY_KEYWORDS = 8
-# 单关键字 boost 上限系数（bm25_norm 地板之上的最大加分）。
-_BOOST_SCALE = 0.5
-# 降权系数：半衰点 n_pages≈11。
-_DEMOTION_COEFF = 0.01
 
 
 def keyword_boosts(session: Session, space_id: int, query: str) -> dict[int, float]:
@@ -37,8 +33,10 @@ def keyword_boosts(session: Session, space_id: int, query: str) -> dict[int, flo
     matched = [k for k in keywords if k.term and k.term in lowered]
     if not matched:
         return {}
-    matched = matched[:_MAX_QUERY_KEYWORDS]
+    matched = matched[: system.recall_keyword_max_query_terms]
 
+    scale = system.recall_keyword_boost_scale
+    coeff = system.recall_keyword_demotion_coeff
     boosts: dict[int, float] = {}
     for keyword in matched:
         rows = session.exec(
@@ -52,7 +50,7 @@ def keyword_boosts(session: Session, space_id: int, query: str) -> dict[int, flo
         n_pages = len(rows)
         if n_pages == 0:
             continue
-        boost = _BOOST_SCALE / (1 + _DEMOTION_COEFF * (n_pages - 1) ** 2)
+        boost = scale / (1 + coeff * (n_pages - 1) ** 2)
         for page_id in rows:
             # 同页多关键字命中取 max 不累加。
             boosts[page_id] = max(boosts.get(page_id, 0.0), boost)

@@ -1,0 +1,48 @@
+# =============================================================================
+# 系统调优（system tier）——本仓工程的唯一可写位置（对齐 createrole#400 三个家口径）。
+# 进 git，改动走 PR，改后重启生效。
+#
+# 这里放「必须代码管理」的运行参数：LLM/embedder 超时与采样、固化批量与陈旧阈值、
+# 召回算法系数。取值：本文件 > 代码默认（wiki_memory/config.py::SystemConfig）；
+# 缺键或 null 用代码默认，坏值仅该项回退并告警。没有 env 覆盖口（退役的同名 ENV
+# 启动期告警并忽略）。
+#
+# 不在这里的：连接/密钥/本机项（.env，见 .env.example）；业务参数（召回 method /
+# max_pages / detail、固化 trigger）由上游按调用入参逐次传入。
+# 本文件须恰好声明全部系统键（tests/test_system_config.py 对账，不缺不多）。
+# =============================================================================
+
+llm:
+  # 单次固化/召回 LLM 请求超时（秒；固化一次两跳、含长上下文，故放宽）
+  timeout_seconds: 300.0
+  # 固化/召回 LLM 采样温度（结构化抽取偏低温）
+  temperature: 0.2
+
+embedder:
+  # 单次 embed 请求超时（秒；惰性补算一批一请求）
+  timeout_seconds: 30.0
+
+consolidation:
+  # 单次固化最多消费的 pending source 数（调用方未传 max_sources 时的默认；1..200）
+  max_sources: 20
+  # running 状态固化运行的陈旧阈值（秒；超过视为进程崩溃残留的死运行，放行新跑）
+  run_stale_seconds: 1800
+  # 近似页保守检测阈值：slug 未命中但 title+hook+summary 词袋 Jaccard ≥ 此值时
+  # 只在 attrs 标 possible_duplicate，不改判操作（有损裁决禁入热路径）
+  duplicate_jaccard_threshold: 0.5
+
+recall:
+  # 高显著性 pending source 临时召回阈值：salience ≥ 此值的待固化材料以临时文档
+  # 参与 bm25/fuzzy 现算并标 provisional（冷启动真空兜底）；>1 即通道关闭。
+  # 只开高显著性窄口——普通回合原文词袋噪声大，全量开会污染召回。
+  pending_min_salience: 0.8
+  # BM25 词频饱和参数 k1 / 文档长度归一参数 b（标准值 1.5 / 0.75）
+  bm25_k1: 1.5
+  bm25_b: 0.75
+  # 关键字倒排通道：单关键字 boost 上限（bm25 归一分之上的最大加分）
+  keyword_boost_scale: 0.5
+  # 关键字降权系数 c：boost = scale / (1 + c·(n_pages−1)²)；0.01 的半衰点在 n≈11，
+  # 指向 30+ 页的万能词近乎无效
+  keyword_demotion_coeff: 0.01
+  # query 侧参与匹配的关键字上限（去重后）
+  keyword_max_query_terms: 8

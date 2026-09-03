@@ -7,7 +7,6 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
-from ...config import settings
 from ...consolidation.engine import ConsolidationEngine
 from ...db import get_session
 from ...locks import space_write_lock
@@ -32,7 +31,7 @@ def consolidate(
             session,
             space,
             trigger=payload.trigger,
-            max_sources=payload.max_sources or settings.consolidate_max_sources,
+            max_sources=payload.max_sources,  # None → system.yaml 的 consolidation.max_sources
         )
 
 

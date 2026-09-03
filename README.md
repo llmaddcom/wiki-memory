@@ -77,10 +77,26 @@ tests/               FakeLLM 端到端（不需要真实 LLM）
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cp .env.example .env   # 配 WIKIMEM_LLM_BASE_URL / MODEL；换 Postgres 改 WIKIMEM_DATABASE_URL
 .venv/bin/uvicorn wiki_memory.main:app --port 8020
-# 或 scripts/run.sh（同上，读 .env，端口用 PORT=xxxx 覆盖），便于 systemd 套壳
+# 或 scripts/run.sh（读 .env 的 WIKIMEM_HOST/PORT，可用 PORT=xxxx 临时覆盖），便于 systemd 套壳
 # 浏览器打开 http://127.0.0.1:8020/ui 预览记忆；/docs 看 OpenAPI
 .venv/bin/python -m pytest   # 测试（FakeLLM，不需要真实 LLM）
 ```
+
+### 配置的三个家
+
+对齐 createrole#400 的口径：每个键只有一个主人、一个可写位置，新部署只需填最底层信息。
+
+| 层 | 主人 | 唯一可写位置 | 放什么 |
+|---|---|---|---|
+| 部署接入 | 装机/运维 | `.env`（不进 git，样例 `.env.example`） | 本机监听、数据库连接串、LLM/embedder 端点与密钥与模型名、服务密钥 |
+| 系统调优 | 本仓工程 | `config/system.yaml`（进 git，改动走 PR，重启生效） | LLM/embedder 超时与温度、固化批量与陈旧阈值、近似页阈值、召回 BM25/关键字系数、pending 临时召回阈值 |
+| 业务参数 | 上游调用方 | 每次请求入参 | 召回 `method`/`max_pages`/`detail`、固化 `trigger`/`max_sources` |
+
+系统键取值 = `system.yaml` > 代码默认（`wiki_memory/config.py::SystemConfig`）；缺键/`null`
+用代码默认，坏值仅该项回退并告警，未知键告警。**没有 env 覆盖口**：旧的
+`WIKIMEM_LLM_TIMEOUT_SECONDS` / `WIKIMEM_EMBEDDER_TIMEOUT_SECONDS` /
+`WIKIMEM_CONSOLIDATE_MAX_SOURCES` / `WIKIMEM_PENDING_RECALL_MIN_SALIENCE` 已退役，
+启动期告警并忽略。`tests/test_system_config.py` 对账 `system.yaml` 恰好声明全部系统键。
 
 ### 存量库手工 SQL 迁移
 

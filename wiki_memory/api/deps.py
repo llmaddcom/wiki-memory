@@ -7,7 +7,7 @@ Fake/Real 分叉只发生在这里（测试经 dependency_overrides 注入 FakeL
 from fastapi import Depends, Header, HTTPException
 from sqlmodel import Session
 
-from ..config import settings
+from ..config import settings, system
 from ..consolidation.engine import ConsolidationEngine
 from ..db import get_session
 from ..embedding import OpenAICompatEmbedder
@@ -27,7 +27,8 @@ def get_llm() -> ChatLLM:
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         model=settings.llm_model,
-        timeout=settings.llm_timeout_seconds,
+        timeout=system.llm_timeout_seconds,
+        temperature=system.llm_temperature,
     )
 
 
@@ -50,7 +51,7 @@ def get_embedder() -> OpenAICompatEmbedder | None:
         api_base=settings.embedder_api_base,
         api_key=settings.embedder_api_key,
         model=settings.embedder_model,
-        timeout=settings.embedder_timeout_seconds,
+        timeout=system.embedder_timeout_seconds,
     )
 
 

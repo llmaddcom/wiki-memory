@@ -17,6 +17,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from ..config import system
 from ..linking import extract_link_slugs, slugify
 from ..llm.base import ChatLLM, LLMError
 from ..models import (
@@ -41,11 +42,6 @@ from ..repositories import (
     source_repo,
 )
 from . import prompts
-
-# 近似页保守检测阈值：slug 未命中但 title+hook+summary 词袋 Jaccard 超过此值时，
-# 不改判操作（有损裁决禁入热路径），只在 attrs 标 possible_duplicate 让劣化可见。
-_DUPLICATE_JACCARD_THRESHOLD = 0.5
-
 
 def parse_json_object(text: str) -> dict:
     """宽容解析：剥掉 code fence / 前后废话，取第一个 { 到最后一个 }。
@@ -122,10 +118,15 @@ def _dedupe_bag(page: Page) -> set[str]:
 
 
 def _find_similar_slugs(candidate: Page, active_pages: list[Page]) -> list[str]:
-    """slug 未命中的新建页 vs 既有 active 页的 Jaccard 相似度，超阈值的 slug 列表。"""
+    """slug 未命中的新建页 vs 既有 active 页的 Jaccard 相似度，超阈值的 slug 列表。
+
+    阈值 consolidation.duplicate_jaccard_threshold：超过只在 attrs 标 possible_duplicate
+    让劣化可见，不改判操作（有损裁决禁入热路径）。
+    """
     bag = _dedupe_bag(candidate)
     if not bag:
         return []
+    threshold = system.consolidation_duplicate_jaccard_threshold
     similar: list[str] = []
     for other in active_pages:
         if other.slug == candidate.slug:
@@ -134,7 +135,7 @@ def _find_similar_slugs(candidate: Page, active_pages: list[Page]) -> list[str]:
         if not other_bag:
             continue
         jaccard = len(bag & other_bag) / len(bag | other_bag)
-        if jaccard >= _DUPLICATE_JACCARD_THRESHOLD:
+        if jaccard >= threshold:
             similar.append(other.slug)
     return similar
 
@@ -158,16 +159,22 @@ class ConsolidationEngine:
         session: Session,
         space: Space,
         trigger: str = "manual",
-        max_sources: int = 20,
+        max_sources: int | None = None,
     ) -> ConsolidationRun:
         # space 级互斥：上游可能并发触发（新会话/上下文压缩/夜间批处理撞车），同一批
         # pending 材料只该被蒸馏一次。发现进行中的固化直接返回它（幂等语义）；
-        # 超过陈旧阈值的 running 视为死运行（进程崩溃残留），放行新跑。
-        active = run_repo.find_active(session, space.id, stale_seconds=1800)
+        # 超过陈旧阈值（consolidation.run_stale_seconds）的 running 视为死运行
+        # （进程崩溃残留），放行新跑。
+        active = run_repo.find_active(
+            session, space.id, stale_seconds=system.consolidation_run_stale_seconds
+        )
         if active is not None:
             return active
 
-        pending = source_repo.list_pending(session, space.id, max_sources)
+        # 批量大小：调用方未指定时用 consolidation.max_sources。
+        pending = source_repo.list_pending(
+            session, space.id, max_sources or system.consolidation_max_sources
+        )
         run = run_repo.create(session, space.id, trigger, [s.id for s in pending])
 
         if not pending:

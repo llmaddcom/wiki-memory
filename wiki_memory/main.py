@@ -6,6 +6,7 @@ from fastapi import FastAPI
 import uvicorn
 
 from .api.router import api_router
+from .config import settings
 from .db import init_db
 
 
@@ -32,5 +33,6 @@ def health():
 
 
 if __name__ == "__main__":
-    # reload 模式要求传应用导入串而非实例，否则改代码不会自动重启
-    uvicorn.run("wiki_memory.main:app", host="0.0.0.0", port=8020, reload=True)
+    # reload 模式要求传应用导入串而非实例，否则改代码不会自动重启。
+    # 监听地址/端口是本机项，来自 .env（WIKIMEM_HOST / WIKIMEM_PORT）。
+    uvicorn.run("wiki_memory.main:app", host=settings.host, port=settings.port, reload=True)
