@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from wiki_memory.config import settings
+from wiki_memory.config import settings, system
 from wiki_memory.consolidation.engine import ConsolidationEngine
 from wiki_memory.llm.openai_compat import OpenAICompatLLM
 from wiki_memory.models import Page, RunStatus, Space
@@ -70,7 +70,8 @@ def test_golden_case(case, db_session):
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         model=settings.llm_model,
-        timeout=settings.llm_timeout_seconds,
+        timeout=system.llm_timeout_seconds,
+        temperature=system.llm_temperature,
     )
     run = ConsolidationEngine(llm).run(db_session, space, trigger="golden")
     assert run.status == RunStatus.succeeded, run.error

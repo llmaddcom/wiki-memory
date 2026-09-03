@@ -16,7 +16,7 @@ detail：full（默认，页面全文）/ hook（轻量钩子行，渐进披露�
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
-from ...config import settings
+from ...config import system
 from ...db import get_session
 from ...llm import ChatLLM
 from ...models import Page, PageType, Source, SourceStatus, Space, utcnow
@@ -38,9 +38,6 @@ from ..deps import (
 )
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
-
-# 关键字 boost 的最大加分（与 recall/keywords 的 _BOOST_SCALE 同值，自适应分母用）。
-_KEYWORD_MAX_BOOST = 0.5
 
 
 @router.post("/spaces/{space_uid}/recall", response_model=schemas.RecallResponse)
@@ -142,7 +139,8 @@ def _bm25_with_keywords(
         boosts = keyword_boosts(session, space_id, query)
     except Exception:  # noqa: BLE001 - 信号通道故障绝不阻断召回主路径
         boosts = {}
-    max_possible = 1.0 + (_KEYWORD_MAX_BOOST if boosts else 0.0)
+    # 自适应分母：关键字 boost 的最大加分即 recall.keyword_boost_scale（与 keywords 通道同源）。
+    max_possible = 1.0 + (system.recall_keyword_boost_scale if boosts else 0.0)
 
     hits: list[RecallHit] = []
     seen_page_ids: set[int] = set()
@@ -190,8 +188,9 @@ def _bm25_with_keywords(
 
 
 def _provisional_pages(session: Session, space_id: int) -> list[Page]:
-    """salience ≥ 阈值的 pending source → 临时文档（不落库，只参与本次现算）。"""
-    threshold = settings.pending_recall_min_salience
+    """salience ≥ 阈值（recall.pending_min_salience）的 pending source → 临时文档
+    （不落库，只参与本次现算）。"""
+    threshold = system.recall_pending_min_salience
     if threshold > 1.0:
         return []  # 阈值 >1 即通道关闭
     pending = [

@@ -6,11 +6,19 @@ from .base import ChatResult, LLMError
 class OpenAICompatLLM:
     """OpenAI 兼容 /chat/completions 适配器（vLLM、各中转均可）。"""
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout: float = 300.0):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout: float = 300.0,
+        temperature: float = 0.2,
+    ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+        self._temperature = temperature
 
     def complete(
         self, system: str, user: str, response_format: dict | None = None
@@ -21,7 +29,7 @@ class OpenAICompatLLM:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "temperature": 0.2,
+            "temperature": self._temperature,
         }
         if response_format is not None:
             # 结构化输出优先；端点不支持 response_format（400/501 等）时
